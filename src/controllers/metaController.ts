@@ -1,0 +1,155 @@
+import {Request,Response} from "express";
+import crypto from 'crypto';
+import axios from "axios";
+import {removeTokensFromDB, saveTokensInDB} from "../models/userModel";
+import {sendMessageFromMeta, subscribeWebhook,disconnect, registerPhone} from "../utils/meta";
+import { getWhatsAppChatId } from "../models/chats";
+import {botController} from "./botController";
+import { sendMessageToAgent } from "../utils/eventManager";
+import { getWABAIDAndToken } from "../models/templateModel";
+
+const APP_SECRET="3c412cb47f456d5a972a1f998e0fc379";
+
+const webhook=async(req:Request,res:Response):Promise<any>=>{
+
+
+    try{
+        const signature = req.headers['x-hub-signature-256'] as string;
+
+        if(!signature){
+            return res.status(401).send({status:false});
+        }
+
+        const elements = signature.split('=');
+        const signatureHash = elements[1];
+        const expectedHash = crypto
+            .createHmac('sha256', APP_SECRET) 
+            .update(req.body) 
+            .digest('hex');
+
+        if (signatureHash !== expectedHash) {
+            console.error('Webhook signature verification failed! Possible spoofed request.');
+            return res.status(401);
+        }
+
+        const payload=JSON.parse(req.body.toString());
+
+
+        if(!payload.entry[0].changes[0].value?.contacts){
+
+            console.log("webhook status other than recieved");
+            return res.status(200).send('OK');
+        }
+
+
+        
+
+
+        const phoneNumberId=payload.entry[0].changes[0].value.metadata.phone_number_id;
+        const from=payload.entry[0].changes[0].value?.contacts[0].wa_id;
+        const message=payload.entry[0].changes[0].value?.messages[0].text.body;
+
+        //find chat
+        const chat=await getWhatsAppChatId(phoneNumberId,from);
+
+        if(!chat){
+            console.log("could not find chat");
+        }
+
+
+        const response=await botController(message,chat._id,chat.flowId,chat.userId,chat.companyId);
+
+        console.log("----------response in meta webhook -----------------");
+        console.log(response);
+        console.log("-------------------------------");
+        if (typeof (response?.botResponse) === 'object') {
+                // If botResponse is an object, return its message property
+                await sendMessageFromMeta(chat.adminId,from,response.botResponse.message);
+                await sendMessageToAgent(chat.companyId,{type:"messageAdded",message:{userId:chat.userId,message:response.botResponse.message,createdOn:new Date().getTime(),isBot:true,isSeen:false},chatId:chat._id});
+                
+                    
+        } else {
+                    // Otherwise, return botResponse directly
+                await sendMessageFromMeta(chat.adminId,from,response?.botResponse);
+                response?.isAgent ? null :  sendMessageToAgent(chat.companyId,{type:"messageAdded",message:{userId:chat.userId,message:response?.botResponse,createdOn:new Date().getTime(),isBot:true,isSeen:false},chatId:chat._id});
+                
+                
+        }
+
+        //sending response
+        res.sendStatus(200);
+    }catch(err){
+        console.error(err);
+        return res.status(500).send({status:false});
+    }
+}
+
+
+const connectMeta=async(req:Request,res:Response):Promise<any>=>{
+
+    try{
+
+        const {code, business_id, waba_id, phone_number_id,userId}=req.body;
+
+        //getting long lived user access token
+        const tokenData=await axios.get("https://graph.facebook.com/v23.0/oauth/access_token",{
+            params:{
+                client_id:process.env.META_APP_ID,
+                client_secret:process.env.META_APP_SECRET,
+                code,
+            }
+        });
+        const { access_token,expires_in } = tokenData.data;
+
+        //saving data
+        await saveTokensInDB(userId,'meta',{access_token ,phoneNumberId:phone_number_id,wabaId:waba_id,businessId:business_id,expiry_date:expires_in});
+
+
+        await registerPhone(phone_number_id,access_token);
+        await subscribeWebhook(waba_id,access_token);
+
+        
+        return res.status(200).send({status:true,message:"Connected!!"});
+    }catch(err){
+
+        console.error(err);
+        return res.status(500).send({status:false,message:"Could not save"});
+    }
+}
+
+
+const disconnectMeta=async(req:Request,res:Response):Promise<any>=>{
+
+    try{
+
+        const {userId}=req.body;
+
+        const {phoneNumberId,wabaID,token}=await getWABAIDAndToken(userId) || {};
+
+        if(!phoneNumberId){
+            return res.status(400).send({status:false,message:"Meta account already disconnected"});
+        }
+
+        const isDisconnected=await disconnect(wabaID,token,phoneNumberId);
+
+        if(!isDisconnected){
+
+            return res.status(400).send({status:false,message:"Not able to dosconnect from meta. Try again later"});
+        }
+
+        await removeTokensFromDB(userId,'meta');
+
+        return res.status(200).send({status:true,message:"Disconnected sucessfully"});
+
+    }catch(err){
+        console.error(err);
+        return res.status(500).send({status:true,message:"Not able to disconnect. Try again later"});
+    }
+}
+
+
+
+
+
+
+export {connectMeta,webhook,disconnectMeta};
