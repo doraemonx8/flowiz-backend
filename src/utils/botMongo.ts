@@ -2,6 +2,7 @@ import Chat from '../models/schema';
 import {getSubFlowData,getUserIdBySubFlowId} from "../models/flowModel";
 import { getFirstNodeIdFromFlow } from './botFlow';
 import { sendMessageToAgent } from './eventManager';
+import { chat } from 'googleapis/build/src/apis/chat';
 
 async function fetchMessagesForChat(chatId: string) {
     try {
@@ -429,137 +430,23 @@ async function updateChatSentiment(chatId: string | number, sentiment: string): 
 }
 
 
-// async function getChatAndFlow(customerPhone: string) {
-//     try {
-//         // Fetching customers collection
-//         const customersCollection = collection(db, 'Customers');
+async function getChatDetails(chatId:string){
 
-//         // Create a query to find the document with the specified `phone`
-//         const customerQuery = query(customersCollection, where('phone', '==', customerPhone));
-//         const customerQuerySnapshot = await getDocs(customerQuery);
+  try{
 
-//         let customerId;
-        
-//         // If no customer is found, create one
-//         if (customerQuerySnapshot.empty) {
-//             const newCustomerRef = doc(customersCollection);
-//             customerId = newCustomerRef.id;
+    const chat=await Chat.findById(chatId);
 
-//             await setDoc(newCustomerRef, {
-//                 name: "test",
-//                 adminId: "2lw6pHakLPAwIB4TS895",
-//                 phone: customerPhone,
-//                 createdOn: Timestamp.now(),
-//             });
-//         } else {
-//             const customerDoc = customerQuerySnapshot.docs[0];
-//             customerId = customerDoc.id;
-//         }
+    if(!chat){
 
-//         // Fetching chats collection and using customerId to get the chat
-//         const chatsCollection = collection(db, 'chats');
-//         const chatsQuery = query(chatsCollection, where('userId', '==', customerId), where('source', '==', 'WA'));
-//         const chatSnapshot = await getDocs(chatsQuery);
+      throw new Error("Chat document not found");
+    }
 
-//         let chatId, flowId, phoneNumberId, wabaId;
-
-//         // If no chat is found, create a new one
-//         if (chatSnapshot.empty) {
-//             console.log("chat is empty");
-//             chatId = Math.floor(100000 + Math.random() * 900000) + "WA";
-//             flowId = "O83aRWCWtWOmnXCai8dZ"; // Default flow ID (lex flow)
-//             phoneNumberId = "409017482295550";
-//             wabaId = "338570956016124";
-//             const adminId = "2lw6pHakLPAwIB4TS895";
-
-//             // Fetch the flow document
-//             const flowRef = doc(db, `flows/${flowId}`);
-//             const flowSnap = await getDoc(flowRef);
-//             const flowData = flowSnap.data()?.flowData || [];
-
-//             // Determine start node ID
-//             let startNodeId = flowData.find((node: any) => node?.data?.isFirstNode === true)?.id || 1;
-
-//             // Reference to the new chat document in the 'chats' collection
-//             const chatRef = doc(chatsCollection, chatId);
-
-//             // Create the new chat document
-//             await setDoc(chatRef, {
-//                 id: chatId,
-//                 currentFlowNodeId: parseInt(startNodeId),
-//                 flowId:flowRef,  
-//                 isAgentHandover: false,
-//                 isDeleted: false,
-//                 isCompleted: false,
-//                 source: 'WA',
-//                 userId: customerId,
-//                 adminId,
-//                 intents: {},
-//                 outOfBounds:[],
-//                 createdOn: Timestamp.now(),
-//             });
-//         } else {
-//             // Extract chat data from the found document
-//             const chatDoc = chatSnapshot.docs[0];
-//             const chatData = chatDoc.data();
-
-//             chatId = chatData.id;
-//             flowId = chatData.flowId;
-//             const adminId = chatData.adminId;
-
-//             // Getting phone number and WABA ID from Admins collection
-//             const adminCollection = collection(db, 'Admins');
-//             const adminQuery = query(adminCollection, where('id', '==', adminId));
-//             const adminSnapshot = await getDocs(adminQuery);
-
-//             if (adminSnapshot.empty) {
-//                 throw new Error("Admin not found");
-//             }
-
-//             const adminDoc = adminSnapshot.docs[0];
-//             ({ phoneNumberId, wabaId } = adminDoc.data());
-//         }
-
-//         // Return chat and flow information
-//         return { chatId, flowId, phoneNumberId, wabaId };
-
-//     } catch (err) {
-//         console.error("Error while getting chat and flow by user number", err);
-//         throw err;
-//     }
-// }
-
-
-// async function setOutOfBound(chatRef:DocumentReference<DocumentData>,message:string){
-
-//     try{
-
-//         // First, get the document
-//         const docSnap = await getDoc(chatRef);
-    
-//         if (!docSnap.exists()) {
-//           throw new Error('chat document not found');
-//         }
-   
-//          // Get the existing outOfBounds array from the document
-//         const outOfBounds = docSnap.data().outOfBounds;
-
-//         // Create an update object
-//         const updateData = {
-//             outOfBounds: [...outOfBounds, message]
-//         };
-    
-//         // Update the document
-//         await updateDoc(chatRef, updateData);
-    
-//         console.log('Chat document updated successfully');
-//         return true;
-        
-//     }catch(err){
-//         console.error("error while updating chat sentiment",err);
-//         throw err;
-//     }
-// }
+    return chat;
+  }catch(err){
+    console.error(err);
+    throw err;
+  }
+}
 
 
 
@@ -568,4 +455,7 @@ async function updateChatSentiment(chatId: string | number, sentiment: string): 
 
 
 
-export { fetchMessagesForChat, addMessageForChat,updateChatIntentStore,fetchIntentsFromChat , getCurrentFlowData , updateNodeId ,deleteMessagesExceptLastFour,updateChatForAgent,updateChatForRestart, updateChatSentiment,getOrCreateChat,getBotRole,getVectorNamespace};
+
+
+
+export { fetchMessagesForChat, addMessageForChat,updateChatIntentStore,fetchIntentsFromChat , getCurrentFlowData , updateNodeId ,deleteMessagesExceptLastFour,updateChatForAgent,updateChatForRestart, updateChatSentiment,getOrCreateChat,getBotRole,getVectorNamespace,getChatDetails};

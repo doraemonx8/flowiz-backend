@@ -39,11 +39,11 @@ const updateJobStatus=async(id:string,status:string,reason?:string)=>{
 }
 
 
-const getJobIdsToRemove=async(companyId:string,adminId:string,flowId:string,campaignId:string,leadId:string)=>{
+const getJobIdsToRemove=async(companyId:string,adminId:string,flowId:string,leadId:string)=>{
 
     try{
 
-        const jobs=await Job.find({companyId,userId:adminId,leadId,flowId,campaignId,status:"pending"});
+        const jobs=await Job.find({companyId,userId:adminId,leadId,flowId,status:"pending"});
 
 
         //updating

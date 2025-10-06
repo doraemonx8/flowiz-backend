@@ -7,6 +7,8 @@ import { getWhatsAppChatId } from "../models/chats";
 import {botController} from "./botController";
 import { sendMessageToAgent } from "../utils/eventManager";
 import { getWABAIDAndToken } from "../models/templateModel";
+import BotGraph from '../utils/botGraph';
+import scheduleMessages from "../utils/scheduleUtil";
 
 const APP_SECRET="3c412cb47f456d5a972a1f998e0fc379";
 
@@ -29,7 +31,8 @@ const webhook=async(req:Request,res:Response):Promise<any>=>{
 
         if (signatureHash !== expectedHash) {
             console.error('Webhook signature verification failed! Possible spoofed request.');
-            return res.status(401);
+            return res.status(401).send({ status: false, error: "Invalid signature" });
+
         }
 
         const payload=JSON.parse(req.body.toString());
@@ -42,42 +45,50 @@ const webhook=async(req:Request,res:Response):Promise<any>=>{
         }
 
 
-        
+        const entry = payload.entry?.[0];
+        const change = entry?.changes?.[0];
+        const value = change?.value;
 
+        const phoneNumberId = value?.metadata?.phone_number_id;
+        const from = value?.contacts?.[0]?.wa_id;
+        const message = value?.messages?.[0]?.text?.body;
 
-        const phoneNumberId=payload.entry[0].changes[0].value.metadata.phone_number_id;
-        const from=payload.entry[0].changes[0].value?.contacts[0].wa_id;
-        const message=payload.entry[0].changes[0].value?.messages[0].text.body;
 
         //find chat
         const chat=await getWhatsAppChatId(phoneNumberId,from);
 
         if(!chat){
             console.log("could not find chat");
+            return res.status(200).send({status:true});
         }
 
-
-        const response=await botController(message,chat._id,chat.flowId,chat.userId,chat.companyId);
+        const botGraph=new BotGraph();
+        const state=await botGraph.processMessage({chatId : chat._id,message,userId : chat.userId,companyId : chat.companyId,adminId : chat.adminId,flowId : chat.flowId},{});
+        
+        const response=state.params.botResponse;
+        // const response=await botController(message,chat._id,chat.flowId,chat.userId,chat.companyId);
 
         console.log("----------response in meta webhook -----------------");
         console.log(response);
         console.log("-------------------------------");
-        if (typeof (response?.botResponse) === 'object') {
+        if (typeof (response) === 'object') {
                 // If botResponse is an object, return its message property
-                await sendMessageFromMeta(chat.adminId,from,response.botResponse.message);
-                await sendMessageToAgent(chat.companyId,{type:"messageAdded",message:{userId:chat.userId,message:response.botResponse.message,createdOn:new Date().getTime(),isBot:true,isSeen:false},chatId:chat._id});
+                await sendMessageFromMeta(chat.adminId,from,response.message);
+                await sendMessageToAgent(chat.companyId,{type:"messageAdded",message:{userId:chat.userId,message:response.message,createdOn:new Date().getTime(),isBot:true,isSeen:false},chatId:chat._id});
                 
                     
         } else {
                     // Otherwise, return botResponse directly
-                await sendMessageFromMeta(chat.adminId,from,response?.botResponse);
-                response?.isAgent ? null :  sendMessageToAgent(chat.companyId,{type:"messageAdded",message:{userId:chat.userId,message:response?.botResponse,createdOn:new Date().getTime(),isBot:true,isSeen:false},chatId:chat._id});
+                await sendMessageFromMeta(chat.adminId,from,response);
+                response?.isAgent ? null :  sendMessageToAgent(chat.companyId,{type:"messageAdded",message:{userId:chat.userId,message:response,createdOn:new Date().getTime(),isBot:true,isSeen:false},chatId:chat._id});
                 
                 
         }
 
+        //schedulle messages for current chat
+        await scheduleMessages(state.params,"whatsapp");
         //sending response
-        res.sendStatus(200);
+        return res.status(200).send({status:true});
     }catch(err){
         console.error(err);
         return res.status(500).send({status:false});

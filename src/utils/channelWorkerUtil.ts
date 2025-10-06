@@ -108,8 +108,38 @@ const createEmailJobsDataFromFlow=(subFlow:any,leadName:string)=>{
     }
 }
 
+const createJobsFromFlow=(flow:any)=>{
+
+  try{
+
+    let hourDelay=0;
+    let minDelay=0;
+
+    return flow.data.map((node : any)=>{
+
+      if(node.type=="delay"){
+        hourDelay+=node.hours;
+        minDelay+=node.mins;
+      }else if (node.type==="email"){
+        return {
+          id:node.id,
+          subject:node.subject,
+          body:node.body,
+          delay : {hours:hourDelay,mins:minDelay}
+        }
+      }
+    });
+
+
+  }catch(err){
+
+    console.error("an error occured while creating whatsapp jobs",err);
+    return [];
+  }
+}
 
 
 
 
-export {createEmailJobsDataFromFlow}
+
+export {createEmailJobsDataFromFlow,createJobsFromFlow}

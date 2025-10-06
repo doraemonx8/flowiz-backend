@@ -133,7 +133,7 @@ const inboxWorker = new Worker('inbox-queue', async (job: any) => {
                                             });
 
                                             //removing any email jobs
-                                            const pendingEmailJobs =await getJobIdsToRemove(chat.companyId,chat.adminId,chat.flowId,chat.campaignId,chat.leadId);
+                                            const pendingEmailJobs =await getJobIdsToRemove(chat.companyId,chat.adminId,chat.flowId,chat.leadId);
 
                                             //removing these jobs
                                             await deleteEmailJobs(pendingEmailJobs as Array<string>);
