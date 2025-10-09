@@ -224,27 +224,8 @@ const testGraph=async(req:Request,res:Response):Promise<any>=>{
 
     try{
 
-        const { message,chatId,encryptedId,subscriptionId } = req.body;
-        // const {chatId,message,userId,companyId,flowId}=req.body;
-
-        if (!encryptedId || typeof encryptedId !== 'string') {
-            return res.status(400).send({ status: false, message: "Invalid encryptedId" });
-        }
-
-        const flowId = decryptId(encryptedId);
-
-        if (flowId === null) {
-            return res.status(400).send({ status: false, message: "Invalid ID after decryption" });
-        }
-
-
-
-        const {companyId,adminId}=await getCompanyIdByFlow(flowId);
-
-        if (!companyId) {
-            throw new Error('Company ID not found for flow.');
-        }
-
+        const { message,chatId,subscriptionId,adminId,companyId,flowId } = req.body;
+       
         const userId =Math.floor(100000 + Math.random() * 900000).toString(); //create a temp userId
 
         const ip =
