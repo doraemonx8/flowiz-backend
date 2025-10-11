@@ -107,9 +107,7 @@ const checkCrawlLeadCount=async(userId:string)=>{
 
 
 const checkFaqCount=async(userId:string)=>{
-
     try{
-
         const data : {remainingFaq:number,usedFaq:number,subscriptionId:number}[]=await db.sequelize.query(`
             SELECT p.faq - COUNT(l.id) as remainingFaq,COUNT(l.id) as usedFaq,s.id as subscriptionId
             FROM subscriptions s
@@ -124,15 +122,11 @@ const checkFaqCount=async(userId:string)=>{
                 type:QueryTypes.SELECT
             });
 
-
         if(data.length && 'remainingFaq' in data[0] && data[0].remainingFaq>0){
-
             return {isAllowed:true,subscriptionId:data[0].subscriptionId};
         }
-
         return false;
     }catch(err){
-
         console.error(err);
         return false;
     }

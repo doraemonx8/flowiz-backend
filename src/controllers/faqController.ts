@@ -14,9 +14,7 @@ import fs from "fs/promises";
 
 const addFAQByDoc=async (req : Request, res : Response):Promise<any>=>{
     try {
-
         const fileName=req.file?.filename;
-
         const {userId,slug,subscriptionId}=req.body;
 
         if (!req.file) {
