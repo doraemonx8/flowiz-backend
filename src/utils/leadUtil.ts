@@ -72,7 +72,7 @@ async function fetchPlaceDetails(placeId: string) {
     if (!response.ok) {
         throw new Error(`HTTP error! Status: ${response.status}`);
     }
-    const data: PlaceDetailsResponse = await response.json();
+    const data = await response.json() as PlaceDetailsResponse;
     return data.result;
 }
 
@@ -90,7 +90,7 @@ async function fetchAllPlaces(query: string,token:string | null=null, maxResults
         if (!response.ok) {
             throw new Error(`HTTP error! Status: ${response.status}`);
         }
-        const data: PlaceSearchResponse = await response.json();
+        const data = await response.json() as PlaceSearchResponse;
 
         places = places.concat(data.results);
         nextPageToken = data.next_page_token;
@@ -159,24 +159,25 @@ const crawlEmails=async(keywords : string,companyId:string,userId:string,crawlDe
             }
 
 
-            const emails=await emailsResult.json();
-            
-            let count=0;
-            emails.data.forEach((emailData : any)=>{
+            const emails = await emailsResult.json();
 
-                const url=Object.keys(emailData)[0];
-                const urlEmails=emailData[url];
+            let count = 0;
+            if (emails && typeof emails === "object" && Array.isArray((emails as any).data)) {
+                (emails as { data: any[] }).data.forEach((emailData: any) => {
 
-                placeDetails = placeDetails.map((place: any) => {
-                    if (place.website === url && urlEmails.length) {
-                        count += 1;
-                        return { ...place, email: urlEmails[0] };
-                    }
-                    return place; 
+                    const url = Object.keys(emailData)[0];
+                    const urlEmails = emailData[url];
+
+                    placeDetails = placeDetails.map((place: any) => {
+                        if (place.website === url && urlEmails.length) {
+                            count += 1;
+                            return { ...place, email: urlEmails[0] };
+                        }
+                        return place;
+                    });
+
                 });
-
-
-            });
+            }
 
             console.log("total emails from crawler => ",count);
             }catch(err : any){

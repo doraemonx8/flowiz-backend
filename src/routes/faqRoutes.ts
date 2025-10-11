@@ -22,7 +22,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 
 
-faqRouter.post('/add-doc',upload.single('doc'),verifyJWT,checkFaqAddLimit,addFAQByDoc);
+faqRouter.post('/add-doc',upload.single('doc'),checkFaqAddLimit,verifyJWT,addFAQByDoc);
 faqRouter.delete("/doc",verifyJWT,deleteFAQByDoc)
 faqRouter.post('/',verifyJWT,checkFaqAddLimit,addFaq);
 faqRouter.get('/',verifyJWT,getAllFaq);

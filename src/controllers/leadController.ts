@@ -101,7 +101,7 @@ const getMasterLeadsFromGoogle=async(req:Request,res:Response):Promise<any>=>{
             }
 
 
-            const emails=await emailsResult.json();
+            const emails = await emailsResult.json() as Array<{[key: string]: string[]}>;
 
             console.log(emails);
             
