@@ -363,7 +363,7 @@ const incrementMessageLedger=async(userId:string,subscriptionId:string,type:stri
 
   try{
 
-    await db.sequelize.query(`INSERT INTO ledger (userId,subscriptonId,type,message) VALUES (:userId,:subscriptionId,:type,:message)`,
+    await db.sequelize.query(`INSERT INTO ledger (userId,subscriptionId,type,message) VALUES (:userId,:subscriptionId,:type,:message)`,
       {
         replacements:{userId,subscriptionId,type,message:`${type} message sent`},
         type:QueryTypes.INSERT
