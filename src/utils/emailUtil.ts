@@ -82,10 +82,10 @@ const verifyEmail=async(params:SendEmailInterface,userId:string)=>{
 
   try{
 
-    const isMailSent=await sendEmail(params);
+    const {isSent,messageId}=await sendEmail(params);
     
     //updating status in DB
-    if(isMailSent){
+    if(isSent){
       const curr=new Date();
       const numberToMonth=["Jan","Feb","Mar","Apr","May","Jun","July","Aug","Sep","Oct","Nov","Dec"];
       const date=`${curr.getDate()}-${numberToMonth[curr.getMonth()]}-${curr.getFullYear()}`;
