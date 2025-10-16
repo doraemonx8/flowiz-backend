@@ -302,7 +302,7 @@ const deleteMailDB=async(email:string,userId:string)=>{
 }
 
 
-const updateEmailData=async(params:Record<string,string>,userId:string,email:string,subscriptionId:string)=>{
+const updateEmailData=async(params:Record<string,string>,userId:string,email:string,subscriptionId:string | null =null )=>{
 
   const t=await db.sequelize.transaction();
 
