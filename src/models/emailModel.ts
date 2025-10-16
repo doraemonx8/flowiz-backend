@@ -262,9 +262,8 @@ const getAllEmailsDB=async(userId:string)=>{
   }
 }
 
-const insertEmail=async(userId:string,type:string,email:string,password:string,subscriptionId:string)=>{
+const insertEmail=async(userId:string,type:string,email:string,password:string)=>{
 
-   const t=await db.sequelize.transaction();
   try{
 
     //checking if email exists
@@ -275,18 +274,9 @@ const insertEmail=async(userId:string,type:string,email:string,password:string,s
       }
     );
 
-    await db.sequelize.query("INSERT INTO ledger (userId,subscriptionId,message,type) VALUES(:userId,:subscriptionId,'Email account added','emailAccount')",
-      {
-        replacements:{userId,subscriptionId},
-        transaction:t,
-        type:QueryTypes.INSERT
-      }
-    )
 
-    await t.commit();
     return true;
   }catch(err){
-    await t.rollback();
     console.error(err);
     return false;
   }
@@ -312,10 +302,11 @@ const deleteMailDB=async(email:string,userId:string)=>{
 }
 
 
-const updateEmailData=async(params:Record<string,string>,userId:string,email:string)=>{
+const updateEmailData=async(params:Record<string,string>,userId:string,email:string,subscriptionId:string)=>{
+
+  const t=await db.sequelize.transaction();
 
   try{
-
 
     const query=Object.keys(params).map((key : string)=> `${key} =:${key}`).join(",");
     await db.sequelize.query(`UPDATE emails SET ${query} WHERE userId=:userId AND emails.email=:email AND emails.isDeleted='0' `,
@@ -324,8 +315,22 @@ const updateEmailData=async(params:Record<string,string>,userId:string,email:str
         type:QueryTypes.UPDATE
       }
     )
+
+    if(params.status==='1'){ //adding in ledger only when email has been verified
+
+        await db.sequelize.query("INSERT INTO ledger (userId,subscriptionId,message,type) VALUES(:userId,:subscriptionId,'Email account added','emailAccount')",
+        {
+          replacements:{userId,subscriptionId},
+          transaction:t,
+          type:QueryTypes.INSERT
+        }
+      )
+    }
+
+    await t.commit();
     return true;
   }catch(err){
+    await t.rollback();
     console.error(err);
     return false;
   }

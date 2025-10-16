@@ -75,17 +75,11 @@ const saveEmail=async(req:Request,res:Response):Promise<any>=>{
 
         const {userId,email,type,password,subscriptionId}=req.body;
 
-        verifyEmail({host:typeToHostMap[type],userEmail:email,userPassword:password,from:email,to:"rahul.solanki@cybernauts.in",subject:"Email Activation",body:"Hey, Email sent before adding"},userId);
+        verifyEmail({host:typeToHostMap[type],userEmail:email,userPassword:password,from:email,to:"rahul.solanki@cybernauts.in",subject:"Email Activation",body:"Hey, Email sent before adding"},userId,subscriptionId);
 
 
-        // const encryptedPassword=encryptId(password);
-        await insertEmail(userId,type,email,password,subscriptionId);
-        // if(emailId==0){ //inserting
-
-            
-        // }else{
-        //     await updateEmailData({email,type,password,status:"0"},userId,email);
-        // }
+        await insertEmail(userId,type,email,password);
+        
         return res.status(200).send({status:true,message:"Email saved!!"});
     }catch(err){
         console.error("An error occured while saving email");

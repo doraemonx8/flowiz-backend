@@ -78,7 +78,7 @@ const sendEmailReply=async(params:Record<string,any>)=>{
 
 
 
-const verifyEmail=async(params:SendEmailInterface,userId:string)=>{
+const verifyEmail=async(params:SendEmailInterface,userId:string,subscriptionId:string)=>{
 
   try{
 
@@ -89,7 +89,7 @@ const verifyEmail=async(params:SendEmailInterface,userId:string)=>{
       const curr=new Date();
       const numberToMonth=["Jan","Feb","Mar","Apr","May","Jun","July","Aug","Sep","Oct","Nov","Dec"];
       const date=`${curr.getDate()}-${numberToMonth[curr.getMonth()]}-${curr.getFullYear()}`;
-      await updateEmailData({status:"1",history:date},userId,params.userEmail);
+      await updateEmailData({status:"1",history:date},userId,params.userEmail,subscriptionId);
 
       //once verified then start watching inbox
 
@@ -113,7 +113,7 @@ const verifyEmail=async(params:SendEmailInterface,userId:string)=>{
 
     }else{
 
-      await updateEmailData({status:"2"},userId,params.userEmail);
+      await updateEmailData({status:"2"},userId,params.userEmail,subscriptionId);
     }
 
     return true;
