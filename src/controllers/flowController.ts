@@ -32,7 +32,7 @@ const createParentFlow=async(req:Request,res:Response):Promise<any>=>{
 
         const flow=data;
         
-        const slug=`${flow.product_name.split(" ").join("-")}-${flow.target.split(" ").join("-")}-${flow.leads}-${new Date().getTime()}`.replaceAll("/","-");
+        const slug=`${flow.product_name.split(" ").join("-")}-${flow.target.split(" ").join("-")}-${flow.leads}-${new Date().getTime()}`.replaceAll("/","-").replaceAll(",","").replace(/[^a-zA-Z0-9 ]/g, ''); //remove any special chars
         const Flows=db.flows;
 
 

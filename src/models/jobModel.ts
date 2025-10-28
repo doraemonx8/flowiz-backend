@@ -62,12 +62,6 @@ const getJobIdsToRemove=async(companyId:string,adminId:string,flowId:string,lead
 const removeAllJobsFromCampaign=async(campaignId:string)=>{
 
     try{
-        
-        //updating
-        await Job.updateMany(
-            {campaignId,status:"pending"},
-            {$set:{status:"cancelled"}}
-        );
 
         const jobs = await Job.find(
         { campaignId, status: "pending" },

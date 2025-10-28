@@ -237,18 +237,26 @@ const getAllEmailsDB=async(userId:string)=>{
 
   try{
 
-    const res=await db.sequelize.query(`
-      SELECT emails.id,emails.email,emails.password,emails.type,emails.status,campaigns.id AS campaignId,campaigns.name,campaigns.createdOn
-      FROM emails 
-      LEFT JOIN campaigns
-      ON FIND_IN_SET(emails.id, campaigns.emailId) > 0
-      WHERE emails.userId =:userId 
-      AND emails.isDeleted = '0'
-      AND campaigns.createdOn = (
-      SELECT MAX(c2.createdOn)
-      FROM campaigns c2
-      WHERE FIND_IN_SET(emails.id, c2.emailId) > 0
-  );`,
+    const res=await db.sequelize.query(`SELECT 
+    emails.id,
+    emails.email,
+    emails.password,
+    emails.type,
+    emails.status,
+    campaigns.id AS campaignId,
+    campaigns.name,
+    campaigns.createdOn
+FROM emails
+LEFT JOIN campaigns  
+    ON FIND_IN_SET(emails.id, campaigns.emailId) > 0
+    AND campaigns.createdOn = (
+        SELECT MAX(c2.createdOn)
+        FROM campaigns c2
+        WHERE FIND_IN_SET(emails.id, c2.emailId) > 0
+    )
+WHERE 
+    emails.userId =:userId
+    AND emails.isDeleted = '0';`,
       {
         replacements:{userId},
         type:QueryTypes.SELECT

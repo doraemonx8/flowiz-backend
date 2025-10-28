@@ -108,12 +108,6 @@ Example:
     "body": "First email content..."
   },
   {
-    "delay": {
-    "hours":"24",
-    "mins":"<delay in mins>",
-    }
-  },
-  {
     "subject": "Second email subject",
     "body": "Second email content..."
   }

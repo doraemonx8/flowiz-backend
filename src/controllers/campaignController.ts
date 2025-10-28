@@ -129,7 +129,6 @@ const cancelCampaign=async(req:Request,res:Response):Promise<any>=>{
 
         const isCancelled=await updateCampaignStatus(campaignId,'cancelled') && await deleteCampaignJobs(campaignId);
 
-        console.log("cancelled camapign");
 
         if(!isCancelled){
 
