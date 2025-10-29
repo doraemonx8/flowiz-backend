@@ -2,78 +2,98 @@ import Chat from "./schema";
 import db from "./conn";
 import { QueryTypes } from "sequelize";
 
-const getChatsByAdminId = async (adminId:string) => {
-    try {
-        const chats = await Chat.aggregate([
-            {
-                $match: {
-                    adminId: adminId.toString(),
-                    $or: [
-                        { channel: { $ne: "email" } }, 
-                        { //only get email chats with more than 1 message
-                            channel: "email",
-                            "messages.1": { $exists: true }
-                        }
-                    ]
-                }
-            },
-            {
-                $addFields: {
-                    messages: {
-                        $slice: [
-                            { $reverseArray: "$messages" }, // reverse to get latest first
-                            20
-                        ]
-                    }
-                }
-            },
-            {
-                $addFields: {
-                    messages: { $reverseArray: "$messages" } // reverse again to maintain chronological order
-                }
-            },
-            {
-                $sort: { createdOn: -1 } // optional: sort chats by latest creation date
-            }
-        ]);
-
-        return chats;
-    } catch (err) {
-        console.error("An error occurred while getting chats :", err);
-        return [];
-    }
-}
-
-
-const getUsersByUserIdList = async (users: Array<string | number>) => {
-    try {
-      // Ensure that users is not empty
-      if (users.length === 0) {
-        console.log("No users provided.");
-        return [];
-      }
-  
-      // Use a parameterized query to prevent SQL injection
-      const result = await db.sequelize.query(
+// new helper: unified leads lookup by ids or search term
+const getLeads = async (opts: { ids?: Array<string | number>, search?: string }) => {
+  try {
+    if (Array.isArray(opts.ids) && opts.ids.length) {
+      const result: any = await db.sequelize.query(
         `SELECT id,name,email,phone FROM leads WHERE leads.id IN (:userIds) AND leads.isDeleted ='0'`,
         {
-          replacements: { userIds: users},
+          replacements: { userIds: opts.ids },
           type: QueryTypes.SELECT
         }
       );
-  
-      console.log(result);
       return result;
-
-    } catch (err) {
-      console.error("An error occurred while getting users: ", err);
-      return [];
     }
-  };
 
+    if (opts.search && typeof opts.search === 'string' && opts.search.trim()) {
+      const likeTerm = `%${opts.search.trim()}%`;
+      const result: any = await db.sequelize.query(
+        `SELECT id,name,email,phone FROM leads WHERE (name LIKE :term OR email LIKE :term OR phone LIKE :term) AND isDeleted ='0'`,
+        {
+          replacements: { term: likeTerm },
+          type: QueryTypes.SELECT
+        }
+      );
+      return result;
+    }
+
+    return [];
+  } catch (err) {
+    console.error("Error in getLeads:", err);
+    return [];
+  }
+};
+
+const getChatsByAdminId = async (adminId: string, page: number, pageSize: number, filter?: string, search?: string) => {
+  try {
+    const baseMatch: any = { adminId: adminId.toString() };
+    let matchCondition: any = { ...baseMatch };
+    // apply explicit channel filter (e.g., 'web', 'whatsapp', 'email') if provided
+    if (filter) {
+      matchCondition.channel = filter;
+    }
+    // apply search term if provided
+    if (search && typeof search === 'string' && search.trim().length) {
+      const term = search.trim();
+      // Get matching leads from SQL (name/email/phone)
+      const leadSearchResults = await getLeads({ search: term });
+      const leadIds = leadSearchResults.map((r: any) => String(r.id));
+      // If no leads matched the search, short-circuit to return no chats
+      if (!leadIds.length) {
+        return { chats: [], total: 0 };
+      }
+      // Restrict Mongo match to chats whose userId is in matching lead IDs
+      const searchMatch = { userId: { $in: leadIds } };
+      if (matchCondition.$and) {
+        matchCondition.$and.push(searchMatch);
+      } else {
+        matchCondition = { $and: [matchCondition, searchMatch] };
+      }
+    }
+  // Get total count for pagination metadata
+  const total = await Chat.countDocuments(matchCondition);
+    // If pagination params provided, use skip/limit in aggregation
+      const skip = (Math.max(1, page) - 1) * Math.max(1, pageSize);
+      const chats = await Chat.aggregate([
+        { $match: matchCondition },
+        { $sort: { createdOn: -1 } },
+        { $skip: skip },
+        { $limit: pageSize },
+        {
+          $addFields: {
+            messages: {
+              $slice: [
+                { $reverseArray: "$messages" },
+                20
+              ]
+            }
+          }
+        },
+        {
+          $addFields: {
+            messages: { $reverseArray: "$messages" }
+          }
+        }
+      ]);
+      return { chats, total };
+  } catch (err) {
+    console.error("An error occurred while getting chats :", err);
+    return { chats: [], total: 0 };
+  }
+}
 
   const createNewChat=async(companyId:string,userId:string,flowId:string)=>{
-
     try{
 
         const newChat=await Chat.create({
@@ -377,4 +397,4 @@ const incrementMessageLedger=async(userId:string,subscriptionId:string,type:stri
   }
 }
 
-export {getChatsByAdminId,getUsersByUserIdList,createNewChat,getMessages,addMessage,checkCompanyForAgent,handleAgentHandover,createOrUpdateChat,setAgentHandover,createChat,getWhatsAppChatId,getChatData,incrementMessageLedger};
+export {getChatsByAdminId, getLeads,createNewChat,getMessages,addMessage,checkCompanyForAgent,handleAgentHandover,createOrUpdateChat,setAgentHandover,createChat,getWhatsAppChatId,getChatData,incrementMessageLedger};

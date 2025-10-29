@@ -1,122 +1,140 @@
-import {type Request,type Response} from 'express';
-import { getChatsByAdminId,createNewChat,getMessages,getUsersByUserIdList,setAgentHandover } from "../models/chats";
-import mongoose from 'mongoose';
+import { type Request, type Response } from "express";
+import { getChatsByAdminId, getLeads, createNewChat, getMessages, setAgentHandover } from "../models/chats";
+import mongoose from "mongoose";
 
+const DEFAULT_PAGE = 1;
+const DEFAULT_PAGE_SIZE = 20;
+const MAX_PAGE_SIZE = 100;
 
-const getChats=async (req:Request,res:Response):Promise<any>=>{
+const parsePageParams = (req: Request) => {
+  const rawPage = req.body.page ?? req.query.page;
+  const rawPageSize = req.body.pageSize ?? req.query.pageSize;
+  const rawFilter = req.body.filter ?? req.query.filter;
+  const rawSearch = req.body.search ?? req.query.search;
 
+  const page = Math.max(1, Number(rawPage) || DEFAULT_PAGE);
+  const pageSize = Math.max(1, Math.min(MAX_PAGE_SIZE, Number(rawPageSize) || DEFAULT_PAGE_SIZE));
+  const filter = typeof rawFilter === "string" && rawFilter.trim() ? String(rawFilter).trim() : undefined;
+  const search = typeof rawSearch === "string" && rawSearch.trim() ? String(rawSearch).trim() : undefined;
 
-    try{
+  return { page, pageSize, filter, search };
+};
 
-        const {companyId,userId}=req.body;
+const getChats = async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ status: false, message: "Missing userId" });
 
-        //getting chats from a company
-        const chats=await getChatsByAdminId(userId);
-        
+    const { page, pageSize, filter, search } = parsePageParams(req);
 
-        const userIds=chats.map((chat)=>{return chat.channel!=="web" ? chat.userId : null});
+    const result = await getChatsByAdminId(userId, page, pageSize, filter, search);
 
-        //getting user details
-        const users=await getUsersByUserIdList(userIds);
+    // normalize response
+    const chats = result?.chats ?? [];
+    const total = result?.total ?? chats.length;
 
-        //map users with chats
-        users.forEach((user: any) => {
-            const userId = String(user.id); 
-            const chatMatches = chats.filter((chat) => String(chat.userId) === userId);
-          
-            chatMatches.forEach((chat) => {
-              chat.userDetails = {
-                name: user.name,
-                contact: user.contact,
-                email: user.email
-              };
-            });
-          });
+    // attach lead details only for non-web chats
+    const ids = [...new Set(chats.filter(c => c.channel !== "web" && c.userId).map(c => String(c.userId)))];
 
-          return res.status(200).send({data:chats});
-          
+    if (ids.length) {
+      const fetchedLeads = await getLeads({ ids });
+      const leadMap = new Map(fetchedLeads.map((l: { id: any; }) => [String(l.id), l]));
 
-
-    }catch(err){
-
-
-        console.error("An error occured while getting chats :",err);
-
-        return res.status(500).send({status:false,message:"Unable to fetch chats right now."});
-    }
-}
-
-
-const createChat=async(req:Request,res:Response):Promise<any>=>{
-
-
-    try{
-
-        const {companyId,userId,flowId}=req.body;
-
-        const isNewChat=await createNewChat(companyId,userId,flowId);
-
-        if(!isNewChat){
-
-            return res.status(400).send({status:false,message:"Could not create a new chat right now"});
+      for (const c of chats) {
+        const u = c.userId && leadMap.get(String(c.userId));
+        if (u) {
+          c.userDetails = {
+            name: u.name,
+            contact: u.phone,
+            email: u.email
+          };
         }
-
-        return res.status(200).send({status:true,message:"New chat created successfully"});
-
-    }catch(err){
-
-        console.error("An error occured while creating new chat :",err);
-        return res.status(500).send({status:false,message:"Unable to create new chat right now."});
+      }
     }
-}
 
-//get lastest 20 messages for a chat
-const getMessagesByChat=async(req:Request,res:Response):Promise<any>=>{
+    return res.json({
+      data: chats,
+      meta: {
+        total,
+        page,
+        pageSize,
+        totalPages: Math.ceil(total / pageSize)
+      }
+    });
+  } catch (err) {
+    console.error("getChats error:", err);
+    return res.status(500).json({ status: false, message: "Unable to fetch chats right now." });
+  }
+};
 
-    try{
 
+const createChat = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { companyId, userId, flowId } = req.body;
 
-        const {chatId}=req.body;
+    const isNewChat = await createNewChat(companyId, userId, flowId);
 
-        const messages=await getMessages(chatId);
-
-
-        return res.status(200).send({status:true,data:messages});
-    }catch(err){
-
-        console.error("An error occured while getting messages for a chat : ",err);
-
-        return res.status(500).send({status:false,message:"Unable to get messages for this chat."});
+    if (!isNewChat) {
+      return res
+        .status(400)
+        .send({ status: false, message: "Could not create a new chat right now" });
     }
-}
 
+    return res
+      .status(200)
+      .send({ status: true, message: "New chat created successfully" });
+  } catch (err) {
+    console.error("An error occured while creating new chat :", err);
+    return res
+      .status(500)
+      .send({ status: false, message: "Unable to create new chat right now." });
+  }
+};
 
-//handover to agent
-const agentHandover=async(req:Request,res:Response):Promise<any>=>{
+// get lastest 20 messages for a chat
+const getMessagesByChat = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { chatId } = req.body;
 
-    try{
-
-        const {chatId,companyId,isHandover}=req.body;
-
-        if (!mongoose.Types.ObjectId.isValid(chatId)) {
-            return res.status(400).json({ error: 'Invalid chat ID' });
-        }
-
-        const isAgentHandover=await setAgentHandover(chatId,isHandover,companyId);
-
-        if(!isAgentHandover){
-
-            return res.status(500).send({status:false,message:"Could not transfer this chat to you. Try again"});
-        }
-
-        return res.status(200).send({status:true,message:"Chat transferred to you"});
-    }catch(err){
-
-        console.error(`An error occured while handing over to agent : `,err);
-
-        return res.status(500).send({status:false,message:"Unable to transfer this chat to you."});
+    if (!chatId) {
+      return res.status(400).json({ status: false, message: "Missing chatId" });
     }
-}
 
+    const messages = await getMessages(chatId);
 
-export {getChats,createChat,getMessagesByChat,agentHandover};
+    return res.status(200).send({ status: true, data: messages });
+  } catch (err) {
+    console.error("An error occured while getting messages for a chat : ", err);
+    return res
+      .status(500)
+      .send({ status: false, message: "Unable to get messages for this chat." });
+  }
+};
+
+// handover to agent
+const agentHandover = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { chatId, companyId, isHandover } = req.body;
+
+    if (!chatId || !mongoose.Types.ObjectId.isValid(chatId)) {
+      return res.status(400).json({ error: "Invalid chat ID" });
+    }
+
+    const isAgentHandover = await setAgentHandover(chatId, isHandover, companyId);
+
+    if (!isAgentHandover) {
+      return res
+        .status(500)
+        .send({ status: false, message: "Could not transfer this chat to you. Try again" });
+    }
+
+    return res.status(200).send({ status: true, message: "Chat transferred to you" });
+  } catch (err) {
+    console.error(`An error occured while handing over to agent : `, err);
+    return res
+      .status(500)
+      .send({ status: false, message: "Unable to transfer this chat to you." });
+  }
+};
+
+export { getChats, createChat, getMessagesByChat, agentHandover };
