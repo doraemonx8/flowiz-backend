@@ -7,7 +7,7 @@ const getLeads = async (opts: { ids?: Array<string | number>, search?: string })
   try {
     if (Array.isArray(opts.ids) && opts.ids.length) {
       const result: any = await db.sequelize.query(
-        `SELECT id,name,email,phone FROM leads WHERE leads.id IN (:userIds) AND leads.isDeleted ='0'`,
+        `SELECT id,name,email,phone,countryCode FROM leads WHERE leads.id IN (:userIds) AND leads.isDeleted ='0'`,
         {
           replacements: { userIds: opts.ids },
           type: QueryTypes.SELECT
@@ -19,7 +19,7 @@ const getLeads = async (opts: { ids?: Array<string | number>, search?: string })
     if (opts.search && typeof opts.search === 'string' && opts.search.trim()) {
       const likeTerm = `%${opts.search.trim()}%`;
       const result: any = await db.sequelize.query(
-        `SELECT id,name,email,phone FROM leads WHERE (name LIKE :term OR email LIKE :term OR phone LIKE :term) AND isDeleted ='0'`,
+        `SELECT id,name,email,phone,countryCode FROM leads WHERE (name LIKE :term OR email LIKE :term OR phone LIKE :term) AND isDeleted ='0'`,
         {
           replacements: { term: likeTerm },
           type: QueryTypes.SELECT
@@ -28,6 +28,25 @@ const getLeads = async (opts: { ids?: Array<string | number>, search?: string })
       return result;
     }
 
+    return [];
+  } catch (err) {
+    console.error("Error in getLeads:", err);
+    return [];
+  }
+};
+
+const getFlows = async ({ids}: {ids: Array<string | number>}) => {
+  try {
+    if (Array.isArray(ids) && ids.length) {
+      const result: any = await db.sequelize.query(
+        `SELECT subFlows.id AS id, campaigns.name AS name FROM campaigns JOIN subFlows ON campaigns.id = subFlows.campaignId WHERE subFlows.id IN (:flowIds) AND subFlows.isDeleted ='0'`,
+     {
+          replacements: { flowIds: ids },
+          type: QueryTypes.SELECT
+        }
+      );
+      return result;
+    }
     return [];
   } catch (err) {
     console.error("Error in getLeads:", err);
@@ -120,15 +139,10 @@ const getChatsByAdminId = async (adminId: string, page: number, pageSize: number
 
 
   const getMessages=async (chatId:string)=>{
-
-
     try{
-
         const chat = await Chat.findOne({ _id: chatId }).select('messages');
         const messages = chat ? chat.messages.slice(-20) : [];
-
         // const messages=await chat?.messages || [];
-
         return messages;
           
     }catch(err){
@@ -140,25 +154,18 @@ const getChatsByAdminId = async (adminId: string, page: number, pageSize: number
 
 
   const addMessage=async(chatId:string,message:Record<string,any>)=>{
-
     try{
-
         await Chat.updateOne({_id:chatId},{$push : {messages:message}});
-
         return true;
     }catch(err){
-
         console.error("An error occured while adding message in mongo DB : ",err);
-
         return false;
     }
   }
 
 
   const checkCompanyForAgent=async(chatId:string,companyId:string)=>{
-
     try{
-
         const chat=await Chat.findOne({_id:chatId}).select('companyId');
 
         return chat && chat.companyId==companyId;
@@ -171,10 +178,7 @@ const getChatsByAdminId = async (adminId: string, page: number, pageSize: number
 
 
   const handleAgentHandover=async(chatId:string,isAgentHandover:boolean,agentId:string | number)=>{
-
-
     try{
-
         await Chat.updateOne({_id:chatId},{$set :{isAgentHandover,agentId}});
         return true;
     }catch(err){
@@ -195,10 +199,7 @@ const getChatsByAdminId = async (adminId: string, page: number, pageSize: number
     companyId:string;
     message:string;
     flowId:string;
-
   }
-
-
 
 
   const createOrUpdateChat = async (data: createUpdateChatInterface) => {
@@ -268,7 +269,6 @@ const getChatsByAdminId = async (adminId: string, page: number, pageSize: number
 
 
   const createChat=async(data:any)=>{
-
     try{
       const newChat=new Chat({
         ...data
@@ -285,9 +285,7 @@ const getChatsByAdminId = async (adminId: string, page: number, pageSize: number
   }
 
   const setAgentHandover=async(chatId:string,isHandover:boolean,companyId:string)=>{
-
     try{
-
       await Chat.findOneAndUpdate(
         { _id: chatId, companyId },
         [
@@ -306,8 +304,6 @@ const getChatsByAdminId = async (adminId: string, page: number, pageSize: number
           }
         ]
       );
-      
-
       return true;
     }catch(err){
 
@@ -397,4 +393,4 @@ const incrementMessageLedger=async(userId:string,subscriptionId:string,type:stri
   }
 }
 
-export {getChatsByAdminId, getLeads,createNewChat,getMessages,addMessage,checkCompanyForAgent,handleAgentHandover,createOrUpdateChat,setAgentHandover,createChat,getWhatsAppChatId,getChatData,incrementMessageLedger};
+export {getChatsByAdminId, getLeads,createNewChat,getMessages,addMessage,checkCompanyForAgent,handleAgentHandover,createOrUpdateChat,setAgentHandover,createChat,getWhatsAppChatId,getChatData,incrementMessageLedger,getFlows};

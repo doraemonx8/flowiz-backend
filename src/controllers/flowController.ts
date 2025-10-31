@@ -6,7 +6,7 @@ import { generateParentFlow,generateEmails,generateCalls,generateChats } from '.
 import db from "../models/conn";
 
 import {upsertFlowConfig,getFlowConfigFromDB,getSubFlowDataFromDB,getParentFlowPrompt,saveSubFlowToDB,getAudiencesFromDB,saveFlowConfigDB,getFlowConfigDB,getFlowDataFromDB,updateFlowDescriptionData,updateSubFlowDB,getSubflowsConfig} from '../models/flowModel';
-import { createCampaign, updateCampaignAudience } from '../models/campaignModel';
+import { createCampaign, getCampaignIdBySlug, updateCampaignAudience } from '../models/campaignModel';
 
 import {encryptId,decryptId} from "../utils/encryptDecrypt";
 // import { addUtmSource } from '../utils/emailUtil';
@@ -188,43 +188,31 @@ const generateEmailByPrompt=async(req:Request,res:Response):Promise<any>=>{
 
 const getSubFlow = async (req: Request, res: Response): Promise<any> => {
     try {
-        const { slug, type } = req.query as { slug?: string; type?: string };
-
+        const {slug, type} = req.query as { slug?: string; type?: string };
         const {userId}=req.body;
-
         if (!slug || !type) {
             return res.status(400).json({ status: false, message: "Slug and Type required" });
         }
-
         const typeToTypeId: Record<string, string> = { email: "1", chat: "2", call: "3", whatsapp :"4" };
-
-
-
 
         if (!(type in typeToTypeId)) {
             return res.status(400).json({ status: false, message: "Invalid type provided" });
         }
-
         const subFlowData = await getSubFlowDataFromDB(slug, typeToTypeId[type],userId);
-
         // Ensure subFlowData is properly formatted
         const flowDataExists = Boolean(subFlowData.length > 0 && (subFlowData[0].flowData || subFlowData[0].json));
 
         if (flowDataExists) {
             return res.status(200).json({ status: true, data: subFlowData[0], isNew: false });
         }
-
         // If subFlowData is empty, generate new data
         const parentFlowPrompt = await getParentFlowPrompt(slug);
         if (!parentFlowPrompt) {
             return res.status(404).json({ status: false, message: "Parent flow prompt not found" });
         }
 
-
         let generatedData=[];
-
         switch(type){
-
             case "email":
                 generatedData = JSON.parse(await generateEmails(parentFlowPrompt));
                 break;
@@ -241,9 +229,13 @@ const getSubFlow = async (req: Request, res: Response): Promise<any> => {
                 generatedData = JSON.parse(await generateChats(parentFlowPrompt));
                 break;
         }
-            
-
-        await saveSubFlowToDB(JSON.stringify(generatedData),slug,typeToTypeId[type],userId);
+        const campaigns = await getCampaignIdBySlug(slug, userId);
+        const campaignId = campaigns?.[0]?.id;
+        if (!campaignId) {
+            res.status(404).send({status:false,message:"Campaign not found"});
+            return;
+        }
+        await saveSubFlowToDB(JSON.stringify(generatedData),slug,typeToTypeId[type],userId,campaignId);
 
         const data={flowData:null,flowShowData:null,json:generatedData};
         return res.status(200).json({ status: true, data, isNew: true });
@@ -256,28 +248,25 @@ const getSubFlow = async (req: Request, res: Response): Promise<any> => {
 
 
 const saveSubFlow=async(req : Request,res:Response) : Promise<any>=>{
-
     try{
-
         const {slug,type,flowData,flowShowData,userId}=req.body;
-
         if(!slug || !type || !flowData || !flowShowData){
-
             return res.status(400).send({status:false,message:"Missing required paramters"});
         }
-
-
+        //fetch campaign id - Moonis
+        const campaigns = await getCampaignIdBySlug(slug, userId);
+        const campaignId = campaigns?.[0]?.id;
+        if (!campaignId) {
+            res.status(404).send({status:false,message:"Campaign not found"});
+            return;
+        }
         //saving in DB
-       const isSaved= await updateSubFlowDB(userId,flowData,flowShowData,type,slug);
-
+       const isSaved= await updateSubFlowDB(userId,campaignId,flowData,flowShowData,type,slug);
        if(!isSaved){
-
         return res.status(500).send({status:false,message:"Could not save Flow"});
        }
-       
         return res.status(200).send({status : true,message:"Flow saved"});
     }catch(err){
-
         console.error("An error occured while saving flow : ",err);
         return res.status(500).send({status:false,message:"Could not save flow. Try again"});
     }

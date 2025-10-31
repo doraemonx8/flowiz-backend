@@ -1,5 +1,5 @@
 import { type Request, type Response } from "express";
-import { getChatsByAdminId, getLeads, createNewChat, getMessages, setAgentHandover } from "../models/chats";
+import { getChatsByAdminId, getLeads, createNewChat, getMessages, setAgentHandover,getFlows } from "../models/chats";
 import mongoose from "mongoose";
 
 const DEFAULT_PAGE = 1;
@@ -33,24 +33,45 @@ const getChats = async (req: Request, res: Response) => {
     const chats = result?.chats ?? [];
     const total = result?.total ?? chats.length;
 
+    // console.log("Fetched chats:", chats);
     // attach lead details only for non-web chats
     const ids = [...new Set(chats.filter(c => c.channel !== "web" && c.userId).map(c => String(c.userId)))];
 
+    // collect flowIds for all chats
+    const flowIds = [...new Set(chats.filter(c => c.flowId).map(c => String(c.flowId)))];
+
+    let leadMap = new Map();
+    let flowMap = new Map();
+
     if (ids.length) {
       const fetchedLeads = await getLeads({ ids });
-      const leadMap = new Map(fetchedLeads.map((l: { id: any; }) => [String(l.id), l]));
+      leadMap = new Map(fetchedLeads.map((l: { id: any; }) => [String(l.id), l]));
+    }
 
-      for (const c of chats) {
-        const u = c.userId && leadMap.get(String(c.userId));
-        if (u) {
-          c.userDetails = {
-            name: u.name,
-            contact: u.phone,
-            email: u.email
-          };
-        }
+    if (flowIds.length) {
+      const fetchedFlows = await getFlows({ ids: flowIds }); // SQL call
+      flowMap = new Map<string, string>(
+        fetchedFlows.map((f: { id: any; name: string }) => [String(f.id), f.name])
+      );
+    }
+
+
+    // mutate chats
+    for (const c of chats) {
+      const u = c.userId && leadMap.get(String(c.userId));
+      if (u) {
+        c.userDetails = {
+          name: u.name,
+          contact: u.phone,
+          email: u.email
+        };
+      }
+      const flowName = c.flowId && flowMap.get(String(c.flowId));
+      if (flowName) {
+        c.flowName = flowName;
       }
     }
+    
 
     return res.json({
       data: chats,

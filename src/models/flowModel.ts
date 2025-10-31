@@ -2,10 +2,7 @@ import db from "../models/conn";
 import { QueryTypes } from "sequelize";
 
 const upsertFlowConfig = async (userId: string | number, flowConfigData: string, flowSlug: string,type:string) => {
-
-    
     try {
-
         //Check if the subFlow exists
         const existing = await db.sequelize.query(
             `SELECT subFlows.id 
@@ -45,11 +42,8 @@ const upsertFlowConfig = async (userId: string | number, flowConfigData: string,
                     type: QueryTypes.SELECT,
                 }
             );
-
             if (!flow.length) return null;
-
             const flowId = (flow[0] as { id: number }).id;
-
             const insertResult = await db.sequelize.query(
                 `INSERT INTO subFlows (userId, flowId, configData, type) 
                  VALUES (:userId, :flowId, :configData, :type)`,
@@ -58,7 +52,6 @@ const upsertFlowConfig = async (userId: string | number, flowConfigData: string,
                     type: QueryTypes.INSERT,
                 }
             );
-
             return insertResult[0] || null;
         }
     } catch (err) {
@@ -67,13 +60,8 @@ const upsertFlowConfig = async (userId: string | number, flowConfigData: string,
     }
 };
 
-
-
-
 const getFlowConfigFromDB=async(flowId:string | number)=>{
-
     try{
-
         const data=await db.sequelize.query(
             `SELECT configData from subFlows WHERE id=:flowId 
             `,
@@ -85,7 +73,6 @@ const getFlowConfigFromDB=async(flowId:string | number)=>{
 
         return data;
     }catch(err){
-
         console.error("An error occured while getting flow config : ",err);
         return [];
     }
@@ -107,14 +94,12 @@ const getSubFlowDataFromDB = async (slug: string, type: string,userId:string): P
                 type: QueryTypes.SELECT
             }
         );
-
         return data as Array<{ flowData: string; flowShowData: string; json: string }>;
     } catch (err) {
         console.error("An error occurred while getting sub-flow data:", err);
         return [];
     }
 };
-
 const getParentFlowPrompt = async (slug: string): Promise<string> => {
     try {
         const result = await db.sequelize.query(
@@ -133,8 +118,7 @@ const getParentFlowPrompt = async (slug: string): Promise<string> => {
     }
 };
 
-
-const saveSubFlowToDB = async (data: string,slug: string,type: string,userId: string) => {
+const saveSubFlowToDB = async (data: string,slug: string,type: string,userId: string,campaignId: string) => {
   try {
     const [flow]: { id: string }[] = await db.sequelize.query(
       `SELECT id FROM flows WHERE slug = :slug AND userId = :userId AND isDeleted = '0'`,
@@ -145,7 +129,6 @@ const saveSubFlowToDB = async (data: string,slug: string,type: string,userId: st
     );
 
     if (!flow) return false;
-
     const [existingSubFlow]: { id: string }[] = await db.sequelize.query(
       `SELECT id FROM subFlows WHERE flowId = :flowId AND type = :type AND userId = :userId`,
       {
@@ -155,7 +138,6 @@ const saveSubFlowToDB = async (data: string,slug: string,type: string,userId: st
     );
 
     let result;
-
     if (existingSubFlow) {
       [result] = await db.sequelize.query(
         `UPDATE subFlows SET json = :data
@@ -167,15 +149,14 @@ const saveSubFlowToDB = async (data: string,slug: string,type: string,userId: st
       );
     } else {
       [result] = await db.sequelize.query(
-        `INSERT INTO subFlows (userId, flowId, type, json) 
-         VALUES (:userId, :flowId, :type, :data)`,
+        `INSERT INTO subFlows (userId, campaignId, flowId, type, json) 
+         VALUES (:userId, :campaignId, :flowId, :type, :data)`,
         {
-          replacements: { userId, flowId: flow.id, type, data },
+          replacements: { userId, campaignId, flowId: flow.id, type, data },
           type: QueryTypes.INSERT,
         }
       );
     }
-
     return true;
   } catch (err) {
     console.error("An error occurred while inserting/updating sub-flow data:", err);
@@ -426,20 +407,15 @@ const updateFlowDescriptionData=async(userId:string,slug:string,businessName:str
 }
 
 
-const updateSubFlowDB=async(userId:string,flowData:string,flowShowData:string,type:string,slug:string) : Promise<boolean>=>{
-
+const updateSubFlowDB=async(userId:string,campaignId:string,flowData:string,flowShowData:string,type:string,slug:string) : Promise<boolean>=>{
     try{
-
-        await db.sequelize.query(
-            `UPDATE subFlows 
-            JOIN flows on flows.id=subFlows.flowId 
-            SET subFlows.flowData=:flowData,subFlows.flowShowData=:flowShowData  
+        await db.sequelize.query(`UPDATE subFlows
+            JOIN flows on flows.id=subFlows.flowId
+            SET subFlows.flowData=:flowData,subFlows.flowShowData=:flowShowData,subFlows.campaignId=:campaignId
             WHERE subFlows.userId=:userId AND type=:type AND flows.slug=:slug`,
-            {replacements:{userId,slug,type,flowData,flowShowData}}
+            {replacements:{userId,campaignId,slug,type,flowData,flowShowData,}}
         );
-
         return true;
-
     }catch(err){
         console.error(err);
         return false;

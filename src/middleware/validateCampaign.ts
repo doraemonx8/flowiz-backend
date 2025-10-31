@@ -4,49 +4,32 @@ import { getUserTemplates } from '../models/templateModel';
 
 
 const validateCampaign=async(req:Request,res:Response,next:NextFunction):Promise<void>=>{
-
     try{
-
         const {slug,userId,agents,audienceId,emailId}=req.body;
-
         //Checking if campaign exists
         const campaigns = await getCampaignIdBySlug(slug, userId);
-
         const campaignId = campaigns?.[0]?.id;
-
         if (!campaignId) {
             res.status(401).send({status:false,message:"Not authorised to schedule this campaign"});
-
             return;
         }
-
-
         //checking if audience ID is present
         if(!audienceId || !Boolean(parseInt(audienceId))){
-
             res.status(404).send({status:false,message:"Need audience for schedulling campaign"});
             return;
         }
-
-      
-
         //checking if audience has leads
         const leadsCount=await checkAudienceAndSetLeads(audienceId,userId,campaignId);
-
         if(!leadsCount){
             res.status(404).send({status:false,message:"Need leads in audience"});
             return;
         }
-
-
         if(!agents){
             res.status(400).send({status:false,message:"Need atleast one agent"});
             return;
         }
-
         //saving agents in DB
         await updateCampaignAgents(campaignId,agents.join(","));
-
         //checking if email agent & if any email present
         for (const agent of agents){
 
