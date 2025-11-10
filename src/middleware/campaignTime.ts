@@ -5,15 +5,10 @@ import { updateTimezone } from "../models/campaignModel";
 const validateCampaignTime=async(req : Request,res : Response,next : NextFunction) : Promise<any>=>{
 
     try{
-
         const {scheduledAt,timezone,campaignId}=req.body; 
-
-
         if(!timezone){
-
             return res.status(400).send({status:false,message:"Timezone required"});
         }
-
 
         //storing timezone in table
         await updateTimezone(campaignId,timezone,scheduledAt);

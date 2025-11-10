@@ -39,7 +39,7 @@ const getFlows = async ({ids}: {ids: Array<string | number>}) => {
   try {
     if (Array.isArray(ids) && ids.length) {
       const result: any = await db.sequelize.query(
-        `SELECT subFlows.id AS id, campaigns.name AS name FROM campaigns JOIN subFlows ON campaigns.id = subFlows.campaignId WHERE subFlows.id IN (:flowIds) AND subFlows.isDeleted ='0'`,
+        `SELECT subFlows.id AS id, subFlows.configData AS configData, campaigns.name AS campaignName FROM campaigns JOIN subFlows ON campaigns.id = subFlows.campaignId WHERE subFlows.id IN (:flowIds) AND subFlows.isDeleted ='0'`,
      {
           replacements: { flowIds: ids },
           type: QueryTypes.SELECT

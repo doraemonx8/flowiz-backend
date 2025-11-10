@@ -8,56 +8,35 @@ import {getTemplatesFromMeta,sendTemplateToMeta,sendTemplateMessageFromMeta} fro
 
 
 const getTemplates=async(req:Request,res:Response):Promise<any>=>{
-
     try{
-
         const {userId}=req.body;
-
         //getting all templates
-
         const templates=await getUserTemplates(userId);
 
-
         let metaTemplates : any[]=templates.map((template : Record<string,any>)=>{
-
             return template.templateFor==='2' //meta template
         });
 
         const {wabaID,token}=await getWABAIDAndToken(userId) || {wabaID :"",token:""};
-
-
         if(metaTemplates.length==0){
-
             return res.status(200).send({status:true,templates:[],isMetaConnected: Boolean(wabaID)});
         }
 
-        
-
         if(!wabaID || !token){
-
-
             return res.status(200).send({status : true,templates,isMetaConnected:false});
         }
 
         //getting meta templates
         const templatesFromMeta=await getTemplatesFromMeta(wabaID,token);
 
-
         if(!templatesFromMeta.status){
-
             return res.status(400).send({status:false,message:templatesFromMeta.message});
         }
-
-
         metaTemplates=templatesFromMeta.data;
-
-
-
         const statusArray : Record<string,string>[]=[];
 
         //checking for status from meta templates
         templates.forEach((template : Record<string,any>)=>{
-
             if(template.templateFor=='2'){
                 //check for status in templates returned by meta
                 const templateId=JSON.parse(template.templateJson).id;
@@ -65,17 +44,13 @@ const getTemplates=async(req:Request,res:Response):Promise<any>=>{
                 const metaTemplateStatus=metaTemplates.find((t: any) => t.id === templateId)?.status || 'NA';
 
                 template['metaStatus']=metaTemplateStatus;
-
-
                 statusArray.push({id : template.id,status:template['metaStatus'].toLowerCase()});
 
             }
         })
 
-
         //update meta template status
         await updateMetaTemplateStatus(statusArray as any);
-
 
         //checking status of meta template
         return res.status(200).send({status:true,templates,isMetaConnected:true});
@@ -174,16 +149,12 @@ const sendTemplateMessage=async(req:Request,res:Response):Promise<any>=>{
 
 const getMetaApprovedTemplates=async(req:Request,res:Response):Promise<any>=>{
     try{
-
         const {userId}=req.body;
         const templates=await getUserTemplates(userId);
-
-
         const metaTemplates : any[]=templates.filter((template : Record<string,any>)=>{
             const status=JSON.parse(template.templateJson).status;
             return template.templateFor==='2' && status==="approved"
         });
-
         return res.status(200).send({status:true,data:metaTemplates});
     }catch(err){
         console.error("An error occured while getting templates : ",err);

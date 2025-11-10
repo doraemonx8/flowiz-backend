@@ -49,30 +49,21 @@ const getChats = async (req: Request, res: Response) => {
     }
 
     if (flowIds.length) {
-      const fetchedFlows = await getFlows({ ids: flowIds }); // SQL call
-      flowMap = new Map<string, string>(
-        fetchedFlows.map((f: { id: any; name: string }) => [String(f.id), f.name])
+      const fetchedFlows = await getFlows({ ids: flowIds }); // SQL call for subflows
+      flowMap = new Map<string, { name: string; configData: any }>(
+        fetchedFlows.map((f: { id: any; campaignName: string; configData: any }) => [String(f.id), { campaignName: f.campaignName, configData: f.configData }])
       );
     }
-
 
     // mutate chats
     for (const c of chats) {
       const u = c.userId && leadMap.get(String(c.userId));
-      if (u) {
-        c.userDetails = {
-          name: u.name,
-          contact: u.phone,
-          email: u.email
-        };
-      }
-      const flowName = c.flowId && flowMap.get(String(c.flowId));
-      if (flowName) {
-        c.flowName = flowName;
-      }
+      if (u){ c.userDetails = { ...u };}
+
+      const f = c.flowId && flowMap.get(String(c.flowId));
+      if (f) {c.flowDetails = {... f};}
     }
     
-
     return res.json({
       data: chats,
       meta: {

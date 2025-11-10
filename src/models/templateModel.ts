@@ -88,24 +88,17 @@ const getPhoneNumberIdAndToken=async(userId:string)=>{
 
 
 const getUserTemplates=async(userId:string)=>{
-
-
     try{
-
         const templates=await db.sequelize.query(
-            `
-            SELECT id,name,status,templateJson,type,templateFor,createdOn,modifiedOn
+            `SELECT id,name,status,templateJson,type,templateFor,createdOn,modifiedOn
             FROM templates
             WHERE templates.userId=:userId
-            AND templates.isDeleted='0'
-            `,
+            AND templates.isDeleted='0'`,
             {
                 replacements:{userId},
                 type:QueryTypes.SELECT,
             }
         );
-
-
         return templates;
     }catch(err){
 

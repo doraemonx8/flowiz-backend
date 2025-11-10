@@ -13,11 +13,8 @@ import scheduleMessages from "../utils/scheduleUtil";
 const APP_SECRET="3c412cb47f456d5a972a1f998e0fc379";
 
 const webhook=async(req:Request,res:Response):Promise<any>=>{
-
-
     try{
         const signature = req.headers['x-hub-signature-256'] as string;
-
         if(!signature){
             return res.status(401).send({status:false});
         }
@@ -36,8 +33,6 @@ const webhook=async(req:Request,res:Response):Promise<any>=>{
         }
 
         const payload=JSON.parse(req.body.toString());
-
-
         if(!payload.entry[0].changes[0].value?.contacts){
 
             console.log("webhook status other than recieved");
@@ -52,10 +47,11 @@ const webhook=async(req:Request,res:Response):Promise<any>=>{
         const phoneNumberId = value?.metadata?.phone_number_id;
         const from = value?.contacts?.[0]?.wa_id;
         const message = value?.messages?.[0]?.text?.body;
-
+        // to be fixed later for country code
+        const fromWithout = from.slice(-10); //removing country code '91' for india
 
         //find chat
-        const chat=await getWhatsAppChatId(phoneNumberId,from);
+        const chat=await getWhatsAppChatId(phoneNumberId,fromWithout);
 
         if(!chat){
             console.log("could not find chat");
