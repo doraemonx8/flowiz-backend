@@ -22,7 +22,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 templateRouter.get('/', verifyJWT, getTemplates);
-templateRouter.post('/',verifyJWT,sendTemplates);
+templateRouter.post('/',verifyJWT, sendTemplates);
 templateRouter.post('/send-template-message',verifyJWT,sendTemplateMessage);
 templateRouter.get('/meta',verifyJWT,getMetaApprovedTemplates);
 templateRouter.post('/upload',verifyJWT,upload.single('templateFile'),uploadTemplateFile);

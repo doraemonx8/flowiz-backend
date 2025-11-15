@@ -63,14 +63,12 @@ const upsertFlowConfig = async (userId: string | number, flowConfigData: string,
 const getFlowConfigFromDB=async(flowId:string | number)=>{
     try{
         const data=await db.sequelize.query(
-            `SELECT configData from subFlows WHERE id=:flowId 
-            `,
+            `SELECT configData from subFlows WHERE id=:flowId `,
             {
                 replacements:{flowId},
                 type:QueryTypes.SELECT,
             }
         );
-
         return data;
     }catch(err){
         console.error("An error occured while getting flow config : ",err);

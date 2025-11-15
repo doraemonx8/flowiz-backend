@@ -1,7 +1,6 @@
 import openai from "../third-party/openAI";
 
 const generateParentFlowPrompt=`
-
 Extract information from the user request and format it as a JSON object with the following structure:
 
 ### Required Fields
@@ -32,8 +31,6 @@ Extract information from the user request and format it as a JSON object with th
     - 'chatbot' (number): 1 if user want a web chatbot for their webiste, 0 if not
   - Set any unmentioned channel to 0
   
-
-
 - 'website' (string)
 -The url of the website if provided by the user
 -If no url has been provided then use null
@@ -44,7 +41,6 @@ Extract information from the user request and format it as a JSON object with th
     -'description'(string) : short description of the bot according to you
 
 ## Response Format
-
 {
   "product_name": string | null,
   "product_type":string,
@@ -63,15 +59,11 @@ Extract information from the user request and format it as a JSON object with th
   }
 }
 
-
-
-
 ## Error Handling
 - If any required field cannot be determined, use the specified defaults
 - All numeric values must be non-negative integers
 - Invalid channel counts should default to 0
-- Malformed requests should return a complete object with default values
-`
+- Malformed requests should return a complete object with default values`
 
 const checkFlowPrompt = `You are an expert NLP agent. Your task is to analyze a given user requirement and return a JSON object with the following keys:
 
@@ -84,16 +76,16 @@ const checkFlowPrompt = `You are an expert NLP agent. Your task is to analyze a 
 `;
 
 
-const generateEmailsPrompt=`You are an expert email marketing strategist. Analyze the product description to determine:
+const generateEmailsPromptOld=`You are an expert email marketing strategist. Analyze the product description to determine:
 - Optimal number of emails
 - Product details and target audience
 
 
 Task Guidelines:
-- Your task is to create emails based on the number of mails mentioned (if any) or create max 5 mails
-- Use placeholder variable for lead name (to whom the mail will be sent) exactly like this ONLY - {{name}}
-- Do not write any signature in the mail, just write the body.
-- email content should not be flagged in spam filters
+- Your task is to create emails based on the number of mails mentioned (if any) or create max 7 mails
+- Use placeholder variable for lead name (to whom the mail will be sent) exactly like this ONLY - {{lead_name}}
+- Do not generate any signature in the mail, just the body.
+- Email content should not be flagged in spam filters.
 
 
 JSON Structure Requirements:
@@ -113,6 +105,88 @@ Example:
   }
 ]
 `;
+
+const generateEmailsPrompt = `
+You are an expert email copywriter.  
+Your task is to generate ONLY the email content (subject + body) inside a fixed node structure.  
+Do NOT change the structure, number of nodes, keys, IDs, or their order.
+
+Rules:
+- Analyze the product description.
+- Use {{lead_name}} exactly as the placeholder for the recipient.
+- No signatures.
+- No spam-trigger words.
+- Keep JSON valid with no explanations.
+
+You MUST output exactly this structure, only filling the empty fields:
+
+[
+  {
+    "id": "email1",
+    "type": "email",
+    "subject": "",
+    "body": "",
+    "next": ["followUp1", "decision1", "decision2"]
+  },
+  {
+    "id": "followUp1",
+    "type": "followUp",
+    "data": [
+      {
+        "type": "delay",
+        "hours": "24",
+        "mins": "0",
+        "sec": "0"
+      },
+      {
+        "type": "email",
+        "subject": "",
+        "body": ""
+      },
+      {
+        "type": "delay",
+        "hours": "48",
+        "mins": "0",
+        "sec": "0"
+      },
+      {
+        "type": "email",
+        "subject": "",
+        "body": ""
+      }
+    ],
+    "next": []
+  },
+  {
+    "id": "decision1",
+    "type": "decision",
+    "content": "If the user responds positively",
+    "next": ["emailPositive"]
+  },
+  {
+    "id": "decision2",
+    "type": "decision",
+    "content": "If the user responds negatively",
+    "next": ["emailNegative"]
+  },
+  {
+    "id": "emailPositive",
+    "type": "email",
+    "subject": "",
+    "body": "",
+    "next": []
+  },
+  {
+    "id": "emailNegative",
+    "type": "email",
+    "subject": "",
+    "body": "",
+    "next": []
+  }
+]
+
+Fill ONLY the empty strings with compelling email content based on the product description.`;
+
 
 const generateCallsPrompt = `You are an expert outbound call strategist. Analyze the product description to determine:
 
@@ -241,9 +315,7 @@ Output Instructions:
 
 
 const generateParentFlow=async(description : string) : Promise<string>=>{
-
     try{
-
         const response=await openai.chat.completions.create({
             model: 'gpt-5-chat-latest',
             messages: [
@@ -253,11 +325,7 @@ const generateParentFlow=async(description : string) : Promise<string>=>{
             // temperature: 0.4,
             response_format: { type: "json_object" }
           });
-    
-
-        
         const data=response.choices[0]?.message?.content;
-
         return data ? data : "{}";
 
     }catch(err){
@@ -297,11 +365,9 @@ const checkFlow=async(prompt:string):Promise<string>=>{
 }
 
 const generateEmails=async(prompt:string):Promise<string>=>{
-
   try{
-
     const response=await openai.chat.completions.create({
-      model: 'gpt-5',
+      model: 'gpt-5.1',
       messages: [
         { role: 'system', content: generateEmailsPrompt },
         { role: 'user', content: `${prompt}`}
@@ -309,33 +375,22 @@ const generateEmails=async(prompt:string):Promise<string>=>{
     });
 
   const data=response.choices[0]?.message?.content; 
-
-  const res :Array<any>=[];
-        if(data){
-
-          JSON.parse(data).forEach((email: any,index: number)=>{ //adding default delay
-
-            res.push(email);
-
-            if(index!==JSON.parse(data).length-1){
-              res.push({"delay":{"hours":24,"mins":0}});
-            }
-          });
-          
-        }
-
-
-        return data ? JSON.stringify(res) : "{}";
-
+  // included in prompt
+  // const res :Array<any>=[];
+  //       if(data){
+  //         JSON.parse(data).forEach((email: any,index: number)=>{ //adding default delay
+  //           res.push(email);
+  //           if(index!==JSON.parse(data).length-1){
+  //             res.push({"delay":{"hours":24,"mins":0}});
+  //           }
+  //         });
+  //       }
+        return data ? data : "[]";
   }catch(err){
-
     console.error("An error occured while checking flow prompt : ",err);
-
-    return "{}";
+    return "[]";
   }
 }
-
-
 
 const generateCalls=async(prompt:string):Promise<string>=>{
 

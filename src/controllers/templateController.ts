@@ -65,34 +65,23 @@ const getTemplates=async(req:Request,res:Response):Promise<any>=>{
 
 
 const sendTemplates=async(req:Request,res:Response) : Promise<any>=>{
-
     try{
-
         const {data,userId,templateFor,type,companyId}=req.body;
-
 
         if(!data || !templateFor || !type){
             return res.status(400).send({status:false,message:"Template data,for and type required"});
         }
 
-
         if(templateFor=='2'){ //meta template
-
             const {wabaID,token}=await getWABAIDAndToken(userId) || {wabaID :"",token:""};
-
             if(!wabaID || !token){
-
                 return res.status(400).send({status : false,message:"Connect Meta account"});
             }
 
             const isTemplateSendToMeta=await sendTemplateToMeta(wabaID,JSON.stringify(data),token);
-
-
             if(!isTemplateSendToMeta.status){
-
                 return res.status(400).send({status: false,message:isTemplateSendToMeta.message});
             }
-
             //saving template to DB
             data['id']=isTemplateSendToMeta.data.id;
         }
@@ -102,42 +91,29 @@ const sendTemplates=async(req:Request,res:Response) : Promise<any>=>{
 
         return res.status(200).send({status:true,message:"Template saved sucessfully"});
     }catch(err){
-
         console.error("An error occured while sending templates : ",err);
-
         return res.status(500).send({status:false,message:"Could not save template. Try again"});
     }
 }
 
 
 const sendTemplateMessage=async(req:Request,res:Response):Promise<any>=>{
-
     try{
-
         const {templateId,phone,userId}=req.body;
-
-
         if(!templateId || !phone){
-
             return res.status(400).send({status:false,message:"Phone & templateId are required"});
         }
 
-
         const templateJSON=await getTemplateByID(templateId,userId);
-
         if(!templateJSON){
-
             return res.status(400).send({status:false,message:"No template for this ID exists"});
         }
-
-       
 
         const templateName=JSON.parse(templateJSON[0].templateJson)?.name;
 
         //sending message via meta template
         const metaTemplateSent=await sendTemplateMessageFromMeta(userId,phone,{template:templateName});
-
-        //adding chat
+        //adding chat - TODO I guess
 
         return res.status(200).send({data:metaTemplateSent});
     }catch(err){
@@ -164,13 +140,9 @@ const getMetaApprovedTemplates=async(req:Request,res:Response):Promise<any>=>{
 
 
 const uploadTemplateFile=async(req:Request,res:Response):Promise<any>=>{
-
     try{
-
         return res.status(200).send({status:true,name:req.file?.filename});
-
     }catch(err){
-
         console.error("An error occured while uploading template file");
         return res.status(500).send({status:false,message:"Could not upload file"});
     }
