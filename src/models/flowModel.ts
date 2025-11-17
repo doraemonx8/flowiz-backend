@@ -5,50 +5,37 @@ const upsertFlowConfig = async (userId: string | number, flowConfigData: string,
     try {
         //Check if the subFlow exists
         const existing = await db.sequelize.query(
-            `SELECT subFlows.id 
-             FROM subFlows 
-             JOIN flows ON subFlows.flowId = flows.id 
-             WHERE flows.slug =:flowSlug 
-             AND subFlows.userId =:userId 
-             AND subFlows.type =:type
-             LIMIT 1`,
-            {
-                replacements: { userId,flowSlug,type },
-                type: QueryTypes.SELECT,
-            }
+            `SELECT subFlows.id FROM subFlows JOIN flows ON subFlows.flowId = flows.id 
+             WHERE flows.slug =:flowSlug AND subFlows.userId =:userId AND subFlows.type =:type LIMIT 1`,
+            {replacements: { userId,flowSlug,type },type: QueryTypes.SELECT,}
         );
-
         if (existing.length > 0) {
             //Update
             await db.sequelize.query(
-                `UPDATE subFlows 
-                 JOIN flows ON subFlows.flowId = flows.id 
+                `UPDATE subFlows JOIN flows ON subFlows.flowId = flows.id 
                  SET subFlows.configData =:configData 
-                 WHERE flows.slug =:flowSlug 
-                 AND subFlows.userId =:userId 
-                 AND subFlows.type =:type`,
-                {
-                    replacements: { userId, configData: flowConfigData, flowSlug,type },
-                    type: QueryTypes.UPDATE,
-                }
+                 WHERE flows.slug =:flowSlug AND subFlows.userId =:userId AND subFlows.type =:type`,
+                {replacements: { userId, configData: flowConfigData, flowSlug,type },type: QueryTypes.UPDATE,}
             );
             return (existing[0] as { id: string | number }).id;
         } else {
             //Create
-            const flow = await db.sequelize.query(
-                `SELECT id FROM flows WHERE slug =:flowSlug LIMIT 1`,
-                {
+            const flow = await db.sequelize.query(`SELECT id FROM flows WHERE slug =:flowSlug LIMIT 1`,{
                     replacements: { flowSlug },
-                    type: QueryTypes.SELECT,
-                }
+                    type: QueryTypes.SELECT,}
             );
             if (!flow.length) return null;
             const flowId = (flow[0] as { id: number }).id;
+            const campaign = await db.sequelize.query(`SELECT id FROM campaigns WHERE flowId =:flowId`,{
+                    replacements: { flowId },
+                    type: QueryTypes.SELECT,}
+            );
+            const campaignId = campaign.length ? (campaign[0] as { id: number }).id : null;
             const insertResult = await db.sequelize.query(
-                `INSERT INTO subFlows (userId, flowId, configData, type) 
-                 VALUES (:userId, :flowId, :configData, :type)`,
+                `INSERT INTO subFlows (userId, flowId, campaignId, configData, type) 
+                 VALUES (:userId, :flowId, :campaignId, :configData, :type)`,
                 {
-                    replacements: { userId, flowId, configData: flowConfigData,type },
+                    replacements: { userId, flowId, campaignId, configData: flowConfigData,type },
                     type: QueryTypes.INSERT,
                 }
             );

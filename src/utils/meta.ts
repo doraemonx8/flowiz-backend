@@ -1,17 +1,13 @@
 import axios from "axios";
-
+import FormData from "form-data";
 import { getWABAIDAndToken } from "../models/templateModel";
 
+const PUBLIC_MEDIA_BASE_URL = "https://cybernauts.one/server-panel-ts/uploads/"; // add this to fileName
+
 const metaTypeToMediaHandleMap={
-  "image": {
-        "h": "4:dGVtcGxhdGVfaW1hZ2U=:aW1hZ2UvanBn:ARaoJVIarzJyT8SyWrDJZ5mEbCZ12QSXG_C3y5jy8e_zJBW19yTZC-KcZY1x9sQJSWzF0ox_cSokWu6qDBMHxgtWyPCZjNdSpZmp-AD9E1BzFw:e:1751028402:1140075601094888:100001687350501:ARbPvfAj_XqlTpsbKAE"
-    },
-    "document": {
-        "h": "4:dGVtcGxhdGVfZG9jdW1lbnQ=:YXBwbGljYXRpb24vcGRm:ARZy4IOR2TbRGN9RD2q3V5pFmgl4LVsK9x0cRDxPvigb5xEq7jrp0gObgx7eeVoCcYrvrkolWYGStpbGBqJ7j03b4RFYR0973vUk3GHfIPv-Uw:e:1751029017:1140075601094888:100001687350501:ARaiBz-Pbq_vQWot0DQ"
-    },
-    "video":{
-      "h": "4:dGVtcGxhdGVfdmlkZW8=:dmlkZW8vbXA0:ARZ9MxXQl9ApugddCPC_xCtAzZM82PiquYncfPpo2pYs_8ovZRLPjviTmAutLY_e1qHzZAUshJnyOzPZ86opaq9nRp_NesWhJ2fx5h0PQ_LjMg:e:1751029123:1140075601094888:100001687350501:ARZtW3RfosyUobaTDBs\n4:dGVtcGxhdGVfdmlkZW8=:dmlkZW8vbXA0:ARYSUw9nwwDh6_9xS9fnMpxsiYaJe5h6Yh2Ruvyt3yXgOfAaLQRHDQ5OHISs0CXQtmbFFWTQF-kfjFXOcX3uZMLv5XmryR8wMhHAHr49eQD4LA:e:1751029123:1140075601094888:100001687350501:ARYVunnj2AsbXL9mznk\n4:dGVtcGxhdGVfdmlkZW8=:dmlkZW8vbXA0:ARbBj7ICBMNPi3mjolPJaqBtXDlwMoZJXd3QzQGgRhMPkTDTg7v-5cG-wBKjAxI3-FxqnIa4q80x5kiXSW5xU_WmzcqPBV0zI5Th98dr5WhTDg:e:1751029123:1140075601094888:100001687350501:ARZEnWM3Y6IsYzFSk94\n4:dGVtcGxhdGVfdmlkZW8=:dmlkZW8vbXA0:ARbIORDL5DDBzpt_GolVYP5rgY8zeg9QLrlUmtnBpLmrJmGeyqBlduf1QqFa_HUVHQjdnMrAHJtwmbpXjU5FH94dMSr5wlLvHgNMCzZQAEZ63Q:e:1751029123:1140075601094888:100001687350501:ARYT8ru2AHVtT5Lv7Ok\n4:dGVtcGxhdGVfdmlkZW8=:dmlkZW8vbXA0:ARZnEgSFkNnRENDvC9TIUMVQ_rwATo97XUACZ3uKV0mS4X33aumZXZQAlbLVBvyC6irolRmV6bohv9exdJuLEGfomvN76y74zk02sVtf6DtWmQ:e:1751029123:1140075601094888:100001687350501:ARb1LqKyymPslFUqLqc\n4:dGVtcGxhdGVfdmlkZW8=:dmlkZW8vbXA0:ARa2PULTdNYilvfjBpBp1o6pgV5g6EiluUEPOWsFb42bTJR6kXNuEFt5Zprp-2GU2LWpcmfdGK9NiTqYh9mk7T6q4HzRV3YxNT-snJ9cXZn5OQ:e:1751029123:1140075601094888:100001687350501:ARZKVG-zBCBerVy0U2k"
-    }
+  "image": "4::aW1hZ2UvcG5n:ARaB_RtVAkwWEiKTjaEFQIppS1JIidQdxGdRB9Vyg-WhdckkyY0tB0f8BWSSJf1THGERH2Mo-f-lw3Uqt5W0-SYG-F7L911DKPv0wijqSOTqfw:e:1763734357:1140075601094888:100001687350501:ARZ76f04Q8V9Di9rsGI",
+  "document": "4:dGVtcGxhdGVfZG9jdW1lbnQ=:YXBwbGljYXRpb24vcGRm:ARZy4IOR2TbRGN9RD2q3V5pFmgl4LVsK9x0cRDxPvigb5xEq7jrp0gObgx7eeVoCcYrvrkolWYGStpbGBqJ7j03b4RFYR0973vUk3GHfIPv-Uw:e:1751029017:1140075601094888:100001687350501:ARaiBz-Pbq_vQWot0DQ",
+  "video": "4:dGVtcGxhdGVfdmlkZW8=:dmlkZW8vbXA0:ARZ9MxXQl9ApugddCPC_xCtAzZM82PiquYncfPpo2pYs_8ovZRLPjviTmAutLY_e1qHzZAUshJnyOzPZ86opaq9nRp_NesWhJ2fx5h0PQ_LjMg:e:1751029123:1140075601094888:100001687350501:ARZtW3RfosyUobaTDBs\n4:dGVtcGxhdGVfdmlkZW8=:dmlkZW8vbXA0:ARYSUw9nwwDh6_9xS9fnMpxsiYaJe5h6Yh2Ruvyt3yXgOfAaLQRHDQ5OHISs0CXQtmbFFWTQF-kfjFXOcX3uZMLv5XmryR8wMhHAHr49eQD4LA:e:1751029123:1140075601094888:100001687350501:ARYVunnj2AsbXL9mznk\n4:dGVtcGxhdGVfdmlkZW8=:dmlkZW8vbXA0:ARbBj7ICBMNPi3mjolPJaqBtXDlwMoZJXd3QzQGgRhMPkTDTg7v-5cG-wBKjAxI3-FxqnIa4q80x5kiXSW5xU_WmzcqPBV0zI5Th98dr5WhTDg:e:1751029123:1140075601094888:100001687350501:ARZEnWM3Y6IsYzFSk94\n4:dGVtcGxhdGVfdmlkZW8=:dmlkZW8vbXA0:ARbIORDL5DDBzpt_GolVYP5rgY8zeg9QLrlUmtnBpLmrJmGeyqBlduf1QqFa_HUVHQjdnMrAHJtwmbpXjU5FH94dMSr5wlLvHgNMCzZQAEZ63Q:e:1751029123:1140075601094888:100001687350501:ARYT8ru2AHVtT5Lv7Ok\n4:dGVtcGxhdGVfdmlkZW8=:dmlkZW8vbXA0:ARZnEgSFkNnRENDvC9TIUMVQ_rwATo97XUACZ3uKV0mS4X33aumZXZQAlbLVBvyC6irolRmV6bohv9exdJuLEGfomvN76y74zk02sVtf6DtWmQ:e:1751029123:1140075601094888:100001687350501:ARb1LqKyymPslFUqLqc\n4:dGVtcGxhdGVfdmlkZW8=:dmlkZW8vbXA0:ARa2PULTdNYilvfjBpBp1o6pgV5g6EiluUEPOWsFb42bTJR6kXNuEFt5Zprp-2GU2LWpcmfdGK9NiTqYh9mk7T6q4HzRV3YxNT-snJ9cXZn5OQ:e:1751029123:1140075601094888:100001687350501:ARZKVG-zBCBerVy0U2k"
 }
 
 
@@ -44,18 +40,17 @@ const sendTemplateToMeta=async(wabaId:string,data:any,token:string)=>{
     try{
           //checking for header type
           const parsedData = typeof data === "string" ? JSON.parse(data) : data;
-          console.log("Parsed Data:", parsedData);
 
           const type = parsedData.components[0]?.format;
           if (type && type !== "TEXT") {
-            const handle =
-              type === "IMAGE"
-                ? metaTypeToMediaHandleMap.image.h
-                : type === "VIDEO"
-                ? metaTypeToMediaHandleMap.video.h
-                : metaTypeToMediaHandleMap.document.h;
+            const handle = type === "IMAGE" ? metaTypeToMediaHandleMap.image
+                : type === "VIDEO" ? metaTypeToMediaHandleMap.video
+                : metaTypeToMediaHandleMap.document;
+
             parsedData.components[0].example = { header_handle: [handle] };
           }
+
+          console.log("Parsed Data:", parsedData.components[0].example.header_handle[0]);
        
            // Send request to Meta API to post the template
            const response = await axios.post(
@@ -82,7 +77,6 @@ const sendTemplateToMeta=async(wabaId:string,data:any,token:string)=>{
     }
 }
 
-
 const sendTemplateMessageFromMeta=async(userId:string,phone:string,templateData:any)=>{
   try{
     //get token data
@@ -95,7 +89,7 @@ const sendTemplateMessageFromMeta=async(userId:string,phone:string,templateData:
           parameters:[
             {
               type:"image",
-              image:{link:`https://cybernauts.one/server-panel-ts/uploads/${templateData.templateFile}`}
+              image:{link:`${PUBLIC_MEDIA_BASE_URL}${templateData.templateFile}`}
             }
           ]
         })

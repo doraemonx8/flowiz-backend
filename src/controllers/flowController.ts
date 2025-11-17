@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 
 
-import { generateParentFlow,generateEmails,generateCalls,generateChats } from '../utils/flowPrompt';
+import { generateParentFlow,generateEmails,generateCalls,generateChats,generateWhatsAppChats } from '../utils/flowPrompt';
 
 import db from "../models/conn";
 
@@ -56,12 +56,10 @@ const setWebConfig=async(req:Request,res:Response):Promise<any>=>{
         const {userId,botName,description,greetingMessage,color,botPosition,flowSlug,websiteURL}=req.body;
         const updatedId=await upsertFlowConfig(userId,JSON.stringify({botName,description,greetingMessage,color,botPosition,websiteURL}),flowSlug,'2');
         if(!updatedId){
-
             return res.status(500).send({status:false,message:"Could not set flow config"});
         }
 
         const encryptedId=encryptId(updatedId);
-
         const jsURL=`https://cybernauts.one/server-panel-ts/bot/bot.js?id=${encryptedId}`;
         // const cssURL=`https://cybernauts.one/server-panel-ts/bot/bot.css`;
         return res.status(200).send({status:true,message:"Flow config set/updated",data:{js:jsURL}});
@@ -205,7 +203,7 @@ const getSubFlow = async (req: Request, res: Response): Promise<any> => {
                 break;
             
             case "whatsapp":
-                generatedData = JSON.parse(jsonrepair(await generateChats(parentFlowPrompt)));
+                generatedData = JSON.parse(jsonrepair(await generateWhatsAppChats(parentFlowPrompt)));
                 break;
         }
         console.log("Generated Data: ",generatedData);

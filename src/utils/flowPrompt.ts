@@ -126,7 +126,19 @@ You MUST output exactly this structure, only filling the empty fields:
     "type": "email",
     "subject": "",
     "body": "",
-    "next": ["followUp1", "decision1", "decision2"]
+    "next": ["decision1", "decision2","followUp1"]
+  },
+  {
+    "id": "decision1",
+    "type": "decision",
+    "content": "If the user responds positively",
+    "next": ["emailPositive"]
+  },
+  {
+    "id": "decision2",
+    "type": "decision",
+    "content": "If the user responds negatively",
+    "next": ["emailNegative"]
   },
   {
     "id": "followUp1",
@@ -145,7 +157,7 @@ You MUST output exactly this structure, only filling the empty fields:
       },
       {
         "type": "delay",
-        "hours": "48",
+        "hours": "24",
         "mins": "0",
         "sec": "0"
       },
@@ -156,18 +168,6 @@ You MUST output exactly this structure, only filling the empty fields:
       }
     ],
     "next": []
-  },
-  {
-    "id": "decision1",
-    "type": "decision",
-    "content": "If the user responds positively",
-    "next": ["emailPositive"]
-  },
-  {
-    "id": "decision2",
-    "type": "decision",
-    "content": "If the user responds negatively",
-    "next": ["emailNegative"]
   },
   {
     "id": "emailPositive",
@@ -258,7 +258,7 @@ Do not add any explanatory text.
 Ensure that the call scripts are persuasive, structured, and audience-appropriate, matching the target audience described in the product description.`;
 
 
-const generateChatsPrompt = `You are an expert in conversational marketing. Analyze the product description to determine:
+const generateChatsPromptOld = `You are an expert in conversational marketing. Analyze the product description to determine:
 - Optimal number of chat messages
 - Explicit delay requirements between chat messages
 - Product details and target audience
@@ -314,6 +314,121 @@ Output Instructions:
 - Ensure the conversation feels natural, relevant, and goal-oriented`;
 
 
+const generateChatsPrompt = `You are an expert in conversational marketing
+Your task: Generate a optimised chatbot flow based as a JSON array using ONLY these two node types, on the product description provided.
+
+1. Chat node:
+{
+  "id": "chatX",
+  "type": "chat",
+  "message": "",
+  "next": []
+}
+
+2. Decision node:
+{
+  "id": "decisionX",
+  "type": "decision",
+  "content": "",
+  "next": []
+}
+
+Rules:
+- The flow MUST start with a chat node with id "chat1".
+- A chat node may ask a question or relevant information and MUST list all available options inside the "message".
+- Decision nodes MUST ONLY define conditional rules like: "If the user chooses <option>"
+- For every option present in the chat node, generate a separate decision node.
+- Each chat node’s "next" should contain decision node IDs or remain empty.
+- Each decision node should lead to a new chat node.
+- Number of chat messages should not exceed 10.
+- Keep messages simple, value-driven, and conversational.
+
+Flow logic guidelines:
+- Start with a friendly intro message in chat1.
+- Add nodes depending on what makes sense for the product.
+- End nodes should have an empty "next".
+
+Output:
+- A JSON array containing all chat and decision nodes.
+- Only fill values in "message" and "content"; keep all structure valid JSON.
+`;
+
+const generateWhatsAppChatsPrompt = `
+You are an expert WhatsApp conversation designer.
+Your task is to generate ONLY the WhatsApp messages inside a fixed node structure.
+Do NOT change the structure, number of nodes, keys, IDs, or their order.
+
+Rules:
+- Analyze the product description.
+- Use {{lead_name}} exactly as the placeholder for the recipient.
+- Keep messages short, conversational, and WhatsApp-friendly.
+- No spam-trigger words.
+- Keep JSON valid.
+
+You MUST output exactly this structure, only filling the empty fields:
+[
+  {
+    "id": "chat1",
+    "type": "whatsappChat",
+    "message": "",
+    "next": ["decision1", "decision2", "followUp1"]
+  },
+  {
+    "id": "decision1",
+    "type": "decision",
+    "content": "If the user responds positively",
+    "next": ["chatPositive"]
+  },
+  {
+    "id": "decision2",
+    "type": "decision",
+    "content": "If the user responds negatively",
+    "next": ["chatNegative"]
+  },
+  {
+    "id": "followUp1",
+    "type": "followUp",
+    "data": [
+      {
+        "type": "delay",
+        "hours": "1",
+        "mins": "0",
+        "sec": "0"
+      },
+      {
+        "type": "whatsappChat",
+        "message": ""
+      },
+      {
+        "type": "delay",
+        "hours": "2",
+        "mins": "0",
+        "sec": "0"
+      },
+      {
+        "type": "whatsappChat",
+        "message": ""
+      }
+    ],
+    "next": []
+  },
+  {
+    "id": "chatPositive",
+    "type": "whatsappChat",
+    "message": "",
+    "next": []
+  },
+  {
+    "id": "chatNegative",
+    "type": "whatsappChats",
+    "message": "",
+    "next": []
+  }
+]
+
+Fill ONLY the empty strings with compelling WhatsApp-style conversational content based on the product description.
+Keep the tone friendly, human, and concise.`;
+
 const generateParentFlow=async(description : string) : Promise<string>=>{
     try{
         const response=await openai.chat.completions.create({
@@ -338,10 +453,7 @@ const generateParentFlow=async(description : string) : Promise<string>=>{
 
 
 const checkFlow=async(prompt:string):Promise<string>=>{
-
-
   try{
-
     const response=await openai.chat.completions.create({
       model: 'gpt-5',
       messages: [
@@ -367,7 +479,7 @@ const checkFlow=async(prompt:string):Promise<string>=>{
 const generateEmails=async(prompt:string):Promise<string>=>{
   try{
     const response=await openai.chat.completions.create({
-      model: 'gpt-5.1',
+      model: 'gpt-5-chat-latest',
       messages: [
         { role: 'system', content: generateEmailsPrompt },
         { role: 'user', content: `${prompt}`}
@@ -419,11 +531,9 @@ const generateCalls=async(prompt:string):Promise<string>=>{
 
 
 const generateChats=async(prompt:string):Promise<string>=>{
-
   try{
-
     const response=await openai.chat.completions.create({
-      model: 'gpt-5-mini',
+      model: 'gpt-5-chat-latest',
       messages: [
         { role: 'system', content: generateChatsPrompt },
         { role: 'user', content: `${prompt}`}
@@ -432,15 +542,36 @@ const generateChats=async(prompt:string):Promise<string>=>{
 
   const data=response.choices[0]?.message?.content;
 
-  return data ? data : "{}";
+  return data ? data : "[]";
 
   }catch(err){
 
     console.error("An error occured while checking flow prompt : ",err);
-
-    return "{}";
+    return "[]";
   }
 }
 
 
-export {generateParentFlow,checkFlow,generateEmails,generateChats,generateCalls};
+const generateWhatsAppChats=async(prompt:string):Promise<string>=>{
+  try{
+    const response=await openai.chat.completions.create({
+      model: 'gpt-5-chat-latest',
+      messages: [
+        { role: 'system', content: generateWhatsAppChatsPrompt },
+        { role: 'user', content: `${prompt}`}
+      ],
+    });
+
+  const data=response.choices[0]?.message?.content;
+
+  return data ? data : "[]";
+
+  }catch(err){
+
+    console.error("An error occured while checking flow prompt : ",err);
+    return "[]";
+  }
+}
+
+
+export {generateParentFlow,checkFlow,generateEmails,generateChats,generateCalls,generateWhatsAppChats};
