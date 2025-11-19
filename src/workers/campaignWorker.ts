@@ -48,8 +48,7 @@ interface CampaignJobData {
 }
 
 // Campaign worker
-const campaignWorker = new Worker<CampaignJobData>(
-  "campaign-queue",
+const campaignWorker = new Worker<CampaignJobData>("campaign-queue",
   async (job: Job<CampaignJobData>) => {
     const { leads, subFlows,campaignId,companyId,userId,isEmailAgent,isCallAgent,isWhatsappAgent,userEmailData} = job.data;
 
@@ -115,7 +114,7 @@ const campaignWorker = new Worker<CampaignJobData>(
           const firstMessageNode=subFlow.flowData.filter((obj : any)=> obj.data.isFirst===true)[0];
           const {phoneNumberId}=await getWABAIDAndToken(userId) || {};
 
-          const jobId=`${new Date().getTime()}_email_${id}`;
+          const jobId=`${new Date().getTime()}_whatsapp_${id}`;
           await whatsappQueue.add("whatsapp-job", { flowData:subFlow.flowData,flowId:subFlow.id, leadId: id, phone,campaignId,companyId,nodeId:firstMessageNode.id,message:firstMessageNode.data,userId,botName:"",botDescription:"",phoneNumberId },{jobId});
 
           //adding in jobs

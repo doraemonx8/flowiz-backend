@@ -369,7 +369,7 @@ You MUST output exactly this structure, only filling the empty fields:
 [
   {
     "id": "chat1",
-    "type": "whatsappChat",
+    "type": "whatsapp",
     "message": "",
     "next": ["decision1", "decision2", "followUp1"]
   },
@@ -396,7 +396,7 @@ You MUST output exactly this structure, only filling the empty fields:
         "sec": "0"
       },
       {
-        "type": "whatsappChat",
+        "type": "whatsapp",
         "message": ""
       },
       {
@@ -406,7 +406,7 @@ You MUST output exactly this structure, only filling the empty fields:
         "sec": "0"
       },
       {
-        "type": "whatsappChat",
+        "type": "whatsapp",
         "message": ""
       }
     ],
@@ -414,13 +414,13 @@ You MUST output exactly this structure, only filling the empty fields:
   },
   {
     "id": "chatPositive",
-    "type": "whatsappChat",
+    "type": "whatsapp",
     "message": "",
     "next": []
   },
   {
     "id": "chatNegative",
-    "type": "whatsappChats",
+    "type": "whatsapp",
     "message": "",
     "next": []
   }

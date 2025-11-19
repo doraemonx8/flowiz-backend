@@ -18,7 +18,6 @@ interface UserEmailDetails {
   }
 
 
-
 const connection = new IORedis({ 
     host:'127.0.0.1',
     port:6381,  
@@ -33,7 +32,6 @@ const typeToHostMap : any={
 
 //WORKERS
 const emailWorker=new Worker('email-queue',async(job :any)=>{
-
     const {campaignId,companyId,leadId,email,subject,body,userId,flowId,nodeId,flowData,userEmailData}=job.data;
     if(!(await checkQuota('email'))){
         console.log(`Email limit reached for today. Skipping: ${job.data.email}`);
@@ -41,36 +39,26 @@ const emailWorker=new Worker('email-queue',async(job :any)=>{
     }
 
     const status=await getCampaignStatus(campaignId);
-
     if(status==='paused'){
-
         console.log(`Campaign ${campaignId} is paused skipping job`);
         return job.moveToDelayed(Date.now() + 1000 * 60 * 10); //recheck in 10 mins
     }
 
     if(status==='cancelled'){
-
         console.log(`Campaign ${campaignId} has been cancelled. Removing job`);
         return job.remove();
     }
 
-    
-    console.log("sending email to : ",job.data.email);
-    
+    console.log("sending email to : ",job.data.email);    
     const signature="\n" + userEmailData.signature;
     // const {messageId,threadId}=await sendGmailEmail(userId,{to:email,from:userEmail.userEmail,subject,body,isHtml:true,signature})
-
     const {isSent,messageId}=await sendEmail({userEmail:userEmailData.email,userPassword:userEmailData.password,from:userEmailData.email,host:typeToHostMap[userEmailData.type],subject,body:body+signature,to:email});
-
 
     if(!isSent){
         await updateJobStatus(job.id,"failed",messageId);
         throw new Error(`Could not sent mail to ${email} : ${messageId}`);
-    }
-
-    
+    }    
     console.log("email sent to : ",job.data.email);
-
     // await incrementQuota('email');
     
     //checking if chat exists
@@ -125,7 +113,6 @@ const emailWorker=new Worker('email-queue',async(job :any)=>{
                 messageId
             }
         )
-
         sendMessageToAgent(companyId,{type:"messageAdded",data:{chatId,message:{
                 isBot:true,isAgent:false,
                 createdOn:new Date().getTime(),
@@ -145,8 +132,6 @@ const emailWorker=new Worker('email-queue',async(job :any)=>{
 
 
 const whatsappWorker=new Worker('whatsapp-queue',async(job : any)=>{
-
-
     const {campaignId,companyId,leadId,phone,flowData,flowId,nodeId,message,userId,botName,botDescription,phoneNumberId}=job.data
     if(!(await checkQuota('whatsapp'))){
         console.log(`Whats app limit reached for today. Skipping : ${phone}`);
@@ -154,20 +139,16 @@ const whatsappWorker=new Worker('whatsapp-queue',async(job : any)=>{
     }
 
     const status=await getCampaignStatus(campaignId);
-
     if(status==='paused'){
-
         console.log(`Campaign ${campaignId} is paused skipping job`);
         return job.moveToDelayed(Date.now() + 1000 * 60 * 10); //recheck in 10 mins
     }
-
     if(status==='cancelled'){
-
         console.log(`Campaign ${campaignId} has been cancelled. Removing job`);
         return job.remove();
     }
     
-    console.log(`Sending whats app text to : ${phone}`);
+    console.log(`Sending whatsapp message to : ${phone}`);
 
     await sendTemplateMessageFromMeta(userId,phone,message);
     
@@ -215,7 +196,6 @@ const whatsappWorker=new Worker('whatsapp-queue',async(job : any)=>{
               unseenMessages:0
             }
           })
-    
 
 },{connection,concurrency:5,limiter: { max: 20, duration: 1000 }});
 

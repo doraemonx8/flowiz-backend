@@ -1,5 +1,4 @@
 import axios from "axios";
-import FormData from "form-data";
 import { getWABAIDAndToken } from "../models/templateModel";
 
 const PUBLIC_MEDIA_BASE_URL = "https://cybernauts.one/server-panel-ts/uploads/"; // add this to fileName
@@ -80,6 +79,7 @@ const sendTemplateToMeta=async(wabaId:string,data:any,token:string)=>{
 const sendTemplateMessageFromMeta=async(userId:string,phone:string,templateData:any)=>{
   try{
     //get token data
+    console.log("Template Data:",templateData);
     const {token,phoneNumberId}=await getWABAIDAndToken(userId) || {};
       const components=[];
       if(templateData?.templateFile){
@@ -93,34 +93,29 @@ const sendTemplateMessageFromMeta=async(userId:string,phone:string,templateData:
             }
           ]
         })
-
       }
-
 
       //text based parameters
       if(templateData?.templateParams){
         Object.keys(templateData.templateParams).forEach((paramType:string)=>{
           components.push({
             type:paramType,
-            parameters:templateData.templateParams.paramType
+            parameters:templateData.templateParams[paramType]
         })
         })
       }
 
-
       const response = await axios.post(
         `https://graph.facebook.com/v23.0/${phoneNumberId}/messages`,
-
         {
           "messaging_product":"whatsapp",
           "to":phone,
           "type":"template",
           "template":{
             "name":`${templateData.template}`,
-            "language":{"code":"en_US"}
-          ,
-          "components":components
-        }
+            "language":{"code":`${templateData.language || "en_US"}`},
+            "components":components
+         }
         },
         {
           headers: {
@@ -149,17 +144,12 @@ const sendTemplateMessageFromMeta=async(userId:string,phone:string,templateData:
 
 
 const sendMessageFromMeta=async(userId:string,phone:string,message:string) : Promise<boolean>=>{
-
   try{
-
     const {phoneNumberId,token}=await getWABAIDAndToken(userId) || {};
-
 
     if(!phoneNumberId || !token){
       return false;
     }
-
-    
 
     const res=await axios.post(`https://graph.facebook.com/v23.0/${phoneNumberId}/messages`,
       {
@@ -182,7 +172,6 @@ const sendMessageFromMeta=async(userId:string,phone:string,message:string) : Pro
 
     return true;
   }catch(err){
-
     console.error("Error in sending meta message : ",err);
     return false;
   }
@@ -190,7 +179,6 @@ const sendMessageFromMeta=async(userId:string,phone:string,message:string) : Pro
 
 
 const subscribeWebhook=async(wabaId:string,token:string)=>{
-
   try{
 
     const res=await axios.post(`https://graph.facebook.com/v23.0/${wabaId}/subscribed_apps`,{},{
@@ -210,9 +198,7 @@ const subscribeWebhook=async(wabaId:string,token:string)=>{
 }
 
 const registerPhone=async(phoneNumberId:string,token:string)=>{
-
   try{
-
     const res=await axios.post(`https://graph.facebook.com/v18.0/${phoneNumberId}/register`,{
       "messaging_product":"whatsapp",
       "pin":424242
@@ -231,11 +217,8 @@ const registerPhone=async(phoneNumberId:string,token:string)=>{
   }
 }
 const disconnect=async(wabaId:string,token:string,phoneNumberId:string)=>{
-
   try{
-
     //de-register phone number Id
-
     const res1=await axios.post(`https://graph.facebook.com/v23.0/${phoneNumberId}/deregister`,{},{
       headers:{
         "Content-Type":"application/json",

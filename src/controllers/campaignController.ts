@@ -13,12 +13,10 @@ const scheduleCampaign=async(req:Request,res:Response):Promise<any>=>{
 
         const {isEmailAgent,isCallAgent,isWhatsappAgent,isWebAgent,subFlows,campaignData,userId,template,campaignId,agents,scheduledAt,emailData,delay}=req.body;
 
-
         if(template && template!=0){
             //saving template Data
             await setTemplateDB(userId,campaignId,template);
         }
-    
 
         if(isWebAgent && agents.length==1){
             return res.status(200).send({status:true,message:"Campaign completed since web bot!!"});
@@ -37,20 +35,13 @@ const scheduleCampaign=async(req:Request,res:Response):Promise<any>=>{
         campaignData[0].userEmailData=isEmailAgent ? emailData : [];
         campaignData[0].delay=delay;
 
-
         const isScheduled=await scheduleCampaignUtil(campaignData[0]);
 
-
         if(!isScheduled.status){
-
             return res.status(400).send({status:false,message:isScheduled.message});
         }
-
-
         return res.status(200).send({status : true,data:campaignData[0],message:isScheduled.message});
-
     }catch(err){
-
         console.error(`An error occured while scheduling campaign : ${err}`);
         return res.status(500).send({status:false,message:"Could not shcedule campaign. Try again later"});
     }

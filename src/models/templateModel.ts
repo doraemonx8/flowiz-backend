@@ -93,7 +93,8 @@ const getUserTemplates=async(userId:string)=>{
             `SELECT id,name,status,templateJson,type,templateFor,createdOn,modifiedOn
             FROM templates
             WHERE templates.userId=:userId
-            AND templates.isDeleted='0'`,
+            AND templates.isDeleted='0'
+            ORDER BY templates.id DESC`,
             {
                 replacements:{userId},
                 type:QueryTypes.SELECT,
