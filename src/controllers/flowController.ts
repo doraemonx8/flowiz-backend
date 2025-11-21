@@ -72,7 +72,6 @@ const setWebConfig=async(req:Request,res:Response):Promise<any>=>{
 }
 
 const setSubFlowConfig=async(req:Request,res:Response):Promise<any>=>{
-
     try{
         const {configData,type,slug,userId}=req.body;
         const isSaved=await upsertFlowConfig(userId,JSON.stringify(configData),slug,type);
@@ -299,13 +298,10 @@ const getFlowData=async(req:Request,res:Response):Promise<any>=>{
         const botsConfig=await getSubflowsConfig(userId,slug as string);
 
         botsConfig?.forEach((config : any)=>{
-
-            if(config?.type=="web"){
-
+            if(config?.subFlowTypes=='1'){
                 const encryptedId=encryptId(config.id);
                 config['jsURL']=`https://cybernauts.one/server-panel-ts/bot/bot.js?id=${encryptedId}`;
             }
-
             delete(config.id);
         })
 
@@ -348,10 +344,10 @@ const getFlowData=async(req:Request,res:Response):Promise<any>=>{
             productTarget:productDetails?.target,
             source:productDetails?.leads,
             website:productDetails?.website || null,
-            emailAgent:Boolean(productDetails?.features.email > 0),
-            whatsappAgent:Boolean(productDetails?.features.whatsApp > 0),
-            webAgent:Boolean(productDetails?.features.chatbot > 0),
-            callAgent:Boolean(productDetails?.features.call > 0),
+            emailAgent:Boolean(botsConfig?.some((c:any)=>c?.subFlowTypes=='1')),
+            whatsappAgent:Boolean(botsConfig?.some((c:any)=>c?.subFlowTypes=='4')),
+            webAgent:Boolean(botsConfig?.some((c:any)=>c?.subFlowTypes=='2')),
+            callAgent:Boolean(botsConfig?.some((c:any)=>c?.subFlowTypes=='3')),
             audiences,
             botsConfig
         }

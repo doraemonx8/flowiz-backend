@@ -218,19 +218,13 @@ const getCampaignResult=async(req:Request,res:Response):Promise<any>=>{
 
 
 const getCampaigns=async(req:Request,res:Response) : Promise<any>=>{
-
     try{
-
         const {userId}=req.body;
-
         const campaigns :any =await getAllCampaigns(userId);
-
         const data: any[]=[];
-
         if(!campaigns.length){
             return res.status(200).send({status:true,data});
         }
-
         for(const campaign of campaigns){
              const agents = [
                 campaign.subFlowTypes && campaign.subFlowTypes.includes('1') ? "email" : "",
@@ -244,7 +238,6 @@ const getCampaigns=async(req:Request,res:Response) : Promise<any>=>{
             delete(campaign?.subFlowTypes);
             const status=campaign.status==='5' ? "draft" :campaign.status==="2" ? "running" : campaign.status==="3" ? "pause" :"cancelled"
             const progress=status!=="draft" ? await getCampaignProgress(campaign.campaignId) :"0";
-
             data.push({...campaign,agents,source,status,progress});
         }
 

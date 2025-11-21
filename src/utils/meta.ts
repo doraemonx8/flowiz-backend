@@ -39,18 +39,16 @@ const sendTemplateToMeta=async(wabaId:string,data:any,token:string)=>{
     try{
           //checking for header type
           const parsedData = typeof data === "string" ? JSON.parse(data) : data;
-
-          const type = parsedData.components[0]?.format;
-          if (type && type !== "TEXT") {
-            const handle = type === "IMAGE" ? metaTypeToMediaHandleMap.image
-                : type === "VIDEO" ? metaTypeToMediaHandleMap.video
+  
+          const format = parsedData.components[0]?.format;
+          if (format && format !== "TEXT") {
+            const handle = format === "IMAGE" ? metaTypeToMediaHandleMap.image
+                : format === "VIDEO" ? metaTypeToMediaHandleMap.video
                 : metaTypeToMediaHandleMap.document;
 
             parsedData.components[0].example = { header_handle: [handle] };
           }
-
-          console.log("Parsed Data:", parsedData.components[0].example.header_handle[0]);
-       
+    
            // Send request to Meta API to post the template
            const response = await axios.post(
             `https://graph.facebook.com/v23.0/${wabaId}/message_templates`,

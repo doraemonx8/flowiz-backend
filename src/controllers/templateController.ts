@@ -11,7 +11,7 @@ const getTemplates=async(req:Request,res:Response):Promise<any>=>{
     try{
         const {userId}=req.body;
         //getting all templates
-        const templates=await getUserTemplates(userId);
+        const templates=await getUserTemplates({userId});
 
         let metaTemplates : any[]=templates.map((template : Record<string,any>)=>{
             return template.templateFor==='2' //meta template
@@ -33,24 +33,23 @@ const getTemplates=async(req:Request,res:Response):Promise<any>=>{
             return res.status(400).send({status:false,message:templatesFromMeta.message});
         }
         metaTemplates=templatesFromMeta.data;
-        const statusArray : Record<string,string>[]=[];
+        const updatedArray : Record<string,string>[]=[];
 
         //checking for status from meta templates
         templates.forEach((template : Record<string,any>)=>{
             if(template.templateFor=='2'){
                 //check for status in templates returned by meta
-                const templateId=JSON.parse(template.templateJson).id;
+                const templateId= template.templateId
 
-                const metaTemplateStatus=metaTemplates.find((t: any) => t.id === templateId)?.status || 'NA';
-
-                template['metaStatus']=metaTemplateStatus;
-                statusArray.push({id : template.id,status:template['metaStatus'].toLowerCase()});
-
+                const metaTemplateData=metaTemplates.find((t: any) => t.id === templateId);
+                
+                template['metaStatus'] = metaTemplateData?.status.toUpperCase()=='APPROVED' ? '1' : (metaTemplateData?.status.toUpperCase()=='REJECTED' ? '0' : '2');
+                updatedArray.push({id : template.id, metaStatus: metaTemplateData?.status, status:template['metaStatus']});
             }
         })
 
         //update meta template status
-        await updateMetaTemplateStatus(statusArray as any);
+        await updateMetaTemplateStatus(updatedArray as any);
 
         //checking status of meta template
         return res.status(200).send({status:true,templates,isMetaConnected:true});
@@ -78,16 +77,19 @@ const sendTemplates=async(req:Request,res:Response) : Promise<any>=>{
                 return res.status(400).send({status : false,message:"Connect Meta account"});
             }
 
-            const isTemplateSendToMeta=await sendTemplateToMeta(wabaID,JSON.stringify(data),token);
+            const isTemplateSendToMeta=await sendTemplateToMeta(wabaID,data,token);
             if(!isTemplateSendToMeta.status){
                 return res.status(400).send({status: false,message:isTemplateSendToMeta.message});
             }
             //saving template to DB
             data['id']=isTemplateSendToMeta.data.id;
+            data['status']=isTemplateSendToMeta.data.status;
         }
         
         const templateName=data.name;
-        await saveTemplateToDB(JSON.stringify(data),templateName,templateFor,userId,type,companyId);
+        const templateId=data.id;
+        const templateStatus = data.status.toUpperCase()=='APPROVED' ? '1' : (data.status.toUpperCase()=='REJECTED' ? '0' : '2');
+        await saveTemplateToDB(companyId,userId,templateName,templateStatus, templateId, JSON.stringify(data), type, templateFor);
 
         return res.status(200).send({status:true,message:"Template saved sucessfully"});
     }catch(err){
@@ -126,12 +128,8 @@ const sendTemplateMessage=async(req:Request,res:Response):Promise<any>=>{
 const getMetaApprovedTemplates=async(req:Request,res:Response):Promise<any>=>{
     try{
         const {userId}=req.body;
-        const templates=await getUserTemplates(userId);
-        const metaTemplates : any[]=templates.filter((template : Record<string,any>)=>{
-            const status=JSON.parse(template.templateJson).status;
-            return template.templateFor==='2' && status==="approved"
-        });
-        return res.status(200).send({status:true,data:metaTemplates});
+        const templates=await getUserTemplates({userId,templateFor:'2',status:'1'});        
+        return res.status(200).send({status:true,data:templates});
     }catch(err){
         console.error("An error occured while getting templates : ",err);
         return res.status(500).send({status:false,message:"Could not get templates.Try again later"});

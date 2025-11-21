@@ -333,7 +333,6 @@ const getUserIdBySubFlowId=async(id:string)=>{
 const getFlowDataFromDB=async(userId:string,slug:string)=>{
 
     try{
-
         const res=await db.sequelize.query(
             `SELECT 
             flows.json,flows.configData,
@@ -353,7 +352,6 @@ const getFlowDataFromDB=async(userId:string,slug:string)=>{
             WHERE flows.userId=:userId AND flows.slug=:slug AND flows.isDeleted='0' ;`,
             {replacements:{userId,slug},type:QueryTypes.SELECT}
         )
-
         return res[0];
     }catch(err){
         console.error("An error occured : ",err);
@@ -408,29 +406,14 @@ const updateSubFlowDB=async(userId:string,campaignId:string,flowData:string,flow
 }
 
 const getSubflowsConfig=async(userId:string,slug:string)=>{
-
     try{
-
         const res=await db.sequelize.query(
-            `SELECT 
-    subFlows.configData,
-    subFlows.id,
-    CASE subFlows.type
-        WHEN 1 THEN 'email'
-        WHEN 2 THEN 'web'
-        WHEN 3 THEN 'call'
-        WHEN 4 THEN 'whatsapp'
-        ELSE 'unknown'
-    END AS type
-    FROM subFlows 
-    INNER JOIN flows ON flows.id = subFlows.flowId 
-    WHERE 
-    flows.userId = :userId 
-    AND flows.slug = :slug 
-    AND flows.isDeleted = '0';`,
+            `SELECT subFlows.configData, subFlows.id, subFlows.type AS subFlowTypes
+            FROM subFlows 
+            INNER JOIN flows ON flows.id = subFlows.flowId 
+            WHERE flows.userId = :userId AND flows.slug = :slug AND flows.isDeleted = '0';`,
             {replacements:{userId,slug},type:QueryTypes.SELECT}
         );
-
         return res;
     }catch(err){
         console.error(err);

@@ -47,12 +47,16 @@ const webhook=async(req:Request,res:Response):Promise<any>=>{
         const phoneNumberId = value?.metadata?.phone_number_id;
         const from = value?.contacts?.[0]?.wa_id;
         const message = value?.messages?.[0]?.text?.body;
-        // to be fixed later for country code
-        const fromWithout = from.slice(-10); //removing country code '91' for india
+        
 
         //find chat
-        const chat=await getWhatsAppChatId(phoneNumberId,fromWithout);
-
+        let chat=await getWhatsAppChatId(phoneNumberId,from);
+        if(!chat){
+            // to be fixed later for country code
+            const fromWithout = from.slice(-10); //removing country code '91' for india
+            chat=await getWhatsAppChatId(phoneNumberId,fromWithout);
+        }
+        
         if(!chat){
             console.log("could not find chat");
             return res.status(200).send({status:true});

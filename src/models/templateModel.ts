@@ -87,45 +87,46 @@ const getPhoneNumberIdAndToken=async(userId:string)=>{
 }
 
 
-const getUserTemplates=async(userId:string)=>{
+// const getUserTemplates=async(userId:string)=>{
+//     try{
+//         return await db.sequelize.query(
+//             `SELECT * FROM templates WHERE templates.userId=:userId AND templates.isDeleted='0' ORDER BY templates.id DESC`,
+//             {replacements:{userId},type:QueryTypes.SELECT}
+//         );
+//     }catch(err){
+//         console.error("An error occured while getting templates from DB : ",err);
+//         return [];
+//     }
+// }
+
+const getUserTemplates = async (where: any = {}) => {
+  try {
+    const replacements = { ...where };
+    const clauses = Object.keys(where).map(k => `${k} = :${k}`);
+
+    return await db.sequelize.query(`SELECT * FROM templates WHERE isDeleted = '0'
+      ${clauses.length ? "AND " + clauses.join(" AND ") : ""}
+      ORDER BY id DESC`, 
+      {replacements, type: QueryTypes.SELECT,});
+  } catch (err) {
+    console.error("An error occured while getting templates from DB :", err);
+    return [];
+  }
+};
+
+
+
+
+const saveTemplateToDB=async(companyId:string,userId:string,name:string,templateStatus:string,templateId:string,data:string,type:string,templateFor:string)=>{
     try{
-        const templates=await db.sequelize.query(
-            `SELECT id,name,status,templateJson,type,templateFor,createdOn,modifiedOn
-            FROM templates
-            WHERE templates.userId=:userId
-            AND templates.isDeleted='0'
-            ORDER BY templates.id DESC`,
-            {
-                replacements:{userId},
-                type:QueryTypes.SELECT,
-            }
-        );
-        return templates;
-    }catch(err){
-
-
-        console.error("An error occured while getting templates from DB : ",err);
-        return [];
-    }
-}
-
-
-
-const saveTemplateToDB=async(data:string,name:string,templateFor:string,userId:string,type:string,companyId:string)=>{
-
-
-    try{
-
         await db.sequelize.query(
-            `INSERT INTO templates (userId,companyId,name,templateJson,templateFor,type)
-             VALUES(:userId,:companyId,:name,:data,:templateFor,:type)`,
+            `INSERT INTO templates (companyId, userId, name, status, templateId, templateJson, type, templateFor)
+             VALUES(:companyId,:userId,:name,:templateStatus,:templateId,:data,:type,:templateFor)`,
             {
-                replacements: { data,name,templateFor, type,userId,companyId },
+                replacements: {companyId,userId,name,templateStatus,templateId,data,type,templateFor},
                 type: QueryTypes.INSERT
             }
         );
-
-
         return true;
     }catch(err : any){
 
@@ -159,37 +160,58 @@ const getTemplateByID=async(templateId:string,userId:string)=>{
     }
 }
 
-const updateMetaTemplateStatus = async (statusArray: Array<{ id: string; status: string }>) => {
-    if (statusArray.length === 0) return true;
+// const updateMetaTemplateStatus = async (statusArray: Array<{ id: string; metaStatus: string; status: string }>) => {
+//     if (statusArray.length === 0) return true;
+//     try {
+//         const ids = statusArray.map(item => item.id);
+//         const caseStatement = statusArray.map(item => `WHEN id = ${item.id} THEN '${item.status}'`).join(' ');
 
-    try {
-        const ids = statusArray.map(item => item.id);
-        
+//         const query = `UPDATE templates
+//             SET status, templateJSON = JSON_SET(templateJSON, '$.status',
+//                 CASE ${caseStatement}END)
+//             WHERE id IN (${ids.join(',')})
+//         `;
 
-        const caseStatement = statusArray
-            .map(item => `WHEN id = ${item.id} THEN '${item.status}'`)
-            .join(' ');
+//         await db.sequelize.query(query, {
+//             type: QueryTypes.UPDATE,
+//         });
 
-        const query = `
-            UPDATE templates
-            SET templateJSON = JSON_SET(templateJSON, '$.status',
-                CASE 
-                    ${caseStatement}
-                END
-            )
-            WHERE id IN (${ids.join(',')})
-        `;
+//         return true;
+//     } catch (err) {
+//         console.error("An error occurred: ", err);
+//         return false;
+//     }
+// };
 
-        await db.sequelize.query(query, {
-            type: QueryTypes.UPDATE,
-        });
+const updateMetaTemplateStatus = async (statusArray: Array<{ id: string; metaStatus: string; status: string }>) => {
+  if (statusArray.length === 0) return true;
 
-        return true;
-    } catch (err) {
-        console.error("An error occurred: ", err);
-        return false;
-    }
+  try {
+    const updates = statusArray.map(item => {
+      return db.sequelize.query(
+        `UPDATE templates SET status = :status,
+         templateJSON = JSON_SET(templateJSON, '$.status', :metaStatus)
+         WHERE id = :id`,
+        {
+          replacements: {
+            id: item.id,
+            status: item.status,
+            metaStatus: item.metaStatus
+          },
+          type: QueryTypes.UPDATE,
+        }
+      );
+    });
+
+    await Promise.all(updates);
+    return true;
+
+  } catch (err) {
+    console.error("Error updating meta template status:", err);
+    return false;
+  }
 };
+
 
 
 
