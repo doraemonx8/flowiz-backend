@@ -23,8 +23,9 @@ const upload = multer({ storage });
 
 templateRouter.get('/', verifyJWT, getTemplates);
 templateRouter.post('/',verifyJWT, sendTemplates);
-templateRouter.post('/send-template-message',verifyJWT,sendTemplateMessage);
+templateRouter.put('/',verifyJWT, sendTemplates);
 templateRouter.get('/meta',verifyJWT,getMetaApprovedTemplates);
+templateRouter.post('/send-template-message',verifyJWT,sendTemplateMessage);
 templateRouter.post('/upload',verifyJWT,upload.single('templateFile'),uploadTemplateFile);
 
 export default templateRouter;

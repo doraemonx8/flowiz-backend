@@ -20,7 +20,6 @@ const getTemplatesFromMeta=async(wabaID:string,token:string)=>{
               },
             }
           );
-
           if (response && response.status === 200) {
             return {status:true,data:response.data?.data || [],message:"templates fetched"};
           } else {
@@ -73,6 +72,56 @@ const sendTemplateToMeta=async(wabaId:string,data:any,token:string)=>{
         return {status:false,message:err.message};
     }
 }
+
+
+const sendOrUpdateTemplateToMeta = async (wabaId: string, data: any, token: string,templateId?: string) => {
+  try {
+    // Parse data if string
+    const parsedData = typeof data === "string" ? JSON.parse(data) : data;
+
+    // Handle HEADER media type (IMAGE / VIDEO / DOCUMENT)
+    const format = parsedData.components?.[0]?.format;
+    if (format && format !== "TEXT") {
+      const handle =
+        format === "IMAGE"
+          ? metaTypeToMediaHandleMap.image
+          : format === "VIDEO"
+          ? metaTypeToMediaHandleMap.video
+          : metaTypeToMediaHandleMap.document;
+
+      parsedData.components[0].example = { header_handle: [handle] };
+    }
+
+    // Determine URL → create or update
+    const url = templateId
+      ? `https://graph.facebook.com/v23.0/${templateId}`                 // UPDATE
+      : `https://graph.facebook.com/v23.0/${wabaId}/message_templates`; // CREATE
+
+    // Make API call
+    const response = await axios.post(url, parsedData, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (response?.status === 200) {
+      console.log(templateId ? "Template updated:" : "Template created:", response.data);
+      return { status: true, data: response.data };
+    } else {
+      console.error("Invalid response:", response.status, response.statusText);
+      return { status: false, message: response.statusText };
+    }
+  } catch (err: any) {
+    console.error(
+      "Meta Template API Error:",
+      err.response?.data || err.message
+    );
+    return { status: false, message: err.message };
+  }
+};
+
+
 
 const sendTemplateMessageFromMeta=async(userId:string,phone:string,templateData:any)=>{
   try{
@@ -246,4 +295,4 @@ const disconnect=async(wabaId:string,token:string,phoneNumberId:string)=>{
 
 
 
-export {getTemplatesFromMeta,sendTemplateToMeta,sendTemplateMessageFromMeta,sendMessageFromMeta,subscribeWebhook,registerPhone,disconnect};
+export {getTemplatesFromMeta,sendOrUpdateTemplateToMeta,sendTemplateMessageFromMeta,sendMessageFromMeta,subscribeWebhook,registerPhone,disconnect};
