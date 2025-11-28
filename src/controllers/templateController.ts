@@ -160,7 +160,6 @@ const sendTemplateMessage=async(req:Request,res:Response):Promise<any>=>{
         //sending message via meta template
         const metaTemplateSent=await sendTemplateMessageFromMeta(userId,phone,{template:templateName});
         //adding chat - TODO I guess
-
         return res.status(200).send({data:metaTemplateSent});
     }catch(err){
 

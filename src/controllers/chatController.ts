@@ -83,23 +83,14 @@ const getChats = async (req: Request, res: Response) => {
 const createChat = async (req: Request, res: Response): Promise<any> => {
   try {
     const { companyId, userId, flowId } = req.body;
-
     const isNewChat = await createNewChat(companyId, userId, flowId);
-
     if (!isNewChat) {
-      return res
-        .status(400)
-        .send({ status: false, message: "Could not create a new chat right now" });
+      return res.status(400).send({ status: false, message: "Could not create a new chat right now" });
     }
-
-    return res
-      .status(200)
-      .send({ status: true, message: "New chat created successfully" });
+    return res.status(200).send({ status: true, message: "New chat created successfully" });
   } catch (err) {
     console.error("An error occured while creating new chat :", err);
-    return res
-      .status(500)
-      .send({ status: false, message: "Unable to create new chat right now." });
+    return res.status(500).send({ status: false, message: "Unable to create new chat right now." });
   }
 };
 
@@ -107,13 +98,10 @@ const createChat = async (req: Request, res: Response): Promise<any> => {
 const getMessagesByChat = async (req: Request, res: Response): Promise<any> => {
   try {
     const { chatId } = req.body;
-
     if (!chatId) {
       return res.status(400).json({ status: false, message: "Missing chatId" });
     }
-
     const messages = await getMessages(chatId);
-
     return res.status(200).send({ status: true, data: messages });
   } catch (err) {
     console.error("An error occured while getting messages for a chat : ", err);
@@ -127,19 +115,15 @@ const getMessagesByChat = async (req: Request, res: Response): Promise<any> => {
 const agentHandover = async (req: Request, res: Response): Promise<any> => {
   try {
     const { chatId, companyId, isHandover } = req.body;
-
     if (!chatId || !mongoose.Types.ObjectId.isValid(chatId)) {
       return res.status(400).json({ error: "Invalid chat ID" });
     }
-
     const isAgentHandover = await setAgentHandover(chatId, isHandover, companyId);
-
     if (!isAgentHandover) {
       return res
         .status(500)
         .send({ status: false, message: "Could not transfer this chat to you. Try again" });
     }
-
     return res.status(200).send({ status: true, message: "Chat transferred to you" });
   } catch (err) {
     console.error(`An error occured while handing over to agent : `, err);

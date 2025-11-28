@@ -9,6 +9,8 @@ import { sendMessageToAgent } from "../utils/eventManager";
 import { getWABAIDAndToken } from "../models/templateModel";
 import BotGraph from '../utils/botGraph';
 import scheduleMessages from "../utils/scheduleUtil";
+// specifically for 8076143089
+import {getLeads, setLeads, createOrUpdateChat} from "../models/chats";
 
 const APP_SECRET="3c412cb47f456d5a972a1f998e0fc379";
 
@@ -34,7 +36,6 @@ const webhook=async(req:Request,res:Response):Promise<any>=>{
 
         const payload=JSON.parse(req.body.toString());
         if(!payload.entry[0].changes[0].value?.contacts){
-
             console.log("webhook status other than recieved");
             return res.status(200).send('OK');
         }
@@ -56,7 +57,42 @@ const webhook=async(req:Request,res:Response):Promise<any>=>{
             const fromWithout = from.slice(-10); //removing country code '91' for india
             chat=await getWhatsAppChatId(phoneNumberId,fromWithout);
         }
-        
+
+        console.log("phoneNumberId :",phoneNumberId);
+        // special condition for test number 8076143089
+        if(phoneNumberId == '511981315339935'){
+        const fromWithout = from.slice(-10);
+        const leadSearchResults = await getLeads({ search: fromWithout });
+        let leadId = ``;
+        if (leadSearchResults.length > 0) {
+             leadId = leadSearchResults[0].id; 
+        } else {
+            leadId = (await setLeads({leads: [{name: `WA User ${fromWithout}`, phone: fromWithout, companyId: '1', audienceIds: ['1']}]})).result;
+        }
+        //updating in mongodb
+        const data = {
+            _id: Math.floor(10000000 + Math.random() * 90000000).toString(),                    
+            companyId: '1',       
+            userId:leadId,
+            adminId:'51',
+            userPhone:from,
+            flowId : '1',
+            flowData : '[]',
+            botRole : `Personal`,
+            currentFlowNodeId:`whatsapp-pro-0`,            
+            intents: {},
+            isAgentHandover: true,
+            isCompleted: true,
+            isDeleted: false,
+            sentiment: 'proceed',
+            channel:"whatsapp",
+            phoneNumberId,
+            messages: [{isBot:false,flowNodeId:`whatsapp-pro-0`,message,createdOn:Math.floor(Date.now() / 1000)}],
+            createdOn: Math.floor(Date.now() / 1000),
+        }
+        // const chatId=await createOrUpdateChat(data);
+        }
+
         if(!chat){
             console.log("could not find chat");
             return res.status(200).send({status:true});
@@ -72,17 +108,13 @@ const webhook=async(req:Request,res:Response):Promise<any>=>{
         console.log(response);
         console.log("-------------------------------");
         if (typeof (response) === 'object') {
-                // If botResponse is an object, return its message property
-                await sendMessageFromMeta(chat.adminId,from,response.message);
-                await sendMessageToAgent(chat.companyId,{type:"messageAdded",message:{userId:chat.userId,message:response.message,createdOn:new Date().getTime(),isBot:true,isSeen:false},chatId:chat._id});
-                
-                    
+            // If botResponse is an object, return its message property
+            await sendMessageFromMeta(chat.adminId,from,response.message);
+            await sendMessageToAgent(chat.companyId,{type:"messageAdded",message:{userId:chat.userId,message:response.message,createdOn:new Date().getTime(),isBot:true,isSeen:false},chatId:chat._id});
         } else {
-                    // Otherwise, return botResponse directly
-                await sendMessageFromMeta(chat.adminId,from,response);
-                response?.isAgent ? null :  sendMessageToAgent(chat.companyId,{type:"messageAdded",message:{userId:chat.userId,message:response,createdOn:new Date().getTime(),isBot:true,isSeen:false},chatId:chat._id});
-                
-                
+            // Otherwise, return botResponse directly
+            await sendMessageFromMeta(chat.adminId,from,response);
+            response?.isAgent ? null :  sendMessageToAgent(chat.companyId,{type:"messageAdded",message:{userId:chat.userId,message:response,createdOn:new Date().getTime(),isBot:true,isSeen:false},chatId:chat._id});  
         }
 
         //schedulle messages for current chat

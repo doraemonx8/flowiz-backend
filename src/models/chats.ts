@@ -35,6 +35,31 @@ const getLeads = async (opts: { ids?: Array<string | number>, search?: string })
   }
 };
 
+//Specifically created for 8076143089
+const setLeads = async (opts: {leads?: Array<{companyId: number | string,audienceIds?: Array<number | string>,name: string, email?: string, phone?: string}>}) => {
+  try {
+    if (!opts.leads || !opts.leads.length) {
+      return { success: false, message: "No leads provided" };
+    }
+    // Build placeholders (?,?,?,?,?,?)
+    const placeholders = opts.leads.map(() => "(?, ?, ?, ?, ?)");
+    // Flatten array of values
+    const values = opts.leads.flatMap((l) => [l.companyId,JSON.stringify(l.audienceIds || []),l.name,l.email || null,l.phone || null]);
+    const query = `INSERT INTO leads (companyId, audienceIds, name, email, phone) VALUES ${placeholders.join(", ")}`;
+    const result: any = await db.sequelize.query(query, {
+      replacements: values,
+      type: QueryTypes.INSERT
+    });
+    return { success: true, result };
+  } catch (err) {
+    console.error("setLeads error:", err);
+    return { success: false, error: err };
+  }
+};
+
+
+
+
 const getFlows = async ({ids}: {ids: Array<string | number>}) => {
   try {
     if (Array.isArray(ids) && ids.length) {
@@ -114,7 +139,6 @@ const getChatsByAdminId = async (adminId: string, page: number, pageSize: number
 
   const createNewChat=async(companyId:string,userId:string,flowId:string)=>{
     try{
-
         const newChat=await Chat.create({
             companyId,
             userId,
@@ -127,11 +151,8 @@ const getChatsByAdminId = async (adminId: string, page: number, pageSize: number
             messages:[],
             createdOn:Math.floor(Date.now() / 1000)
         });
-
-
         return true;
     }catch(err){
-
         console.error("An error occured while creating new chat in monogo DB : ",err);
         return false;
     }
@@ -144,9 +165,7 @@ const getChatsByAdminId = async (adminId: string, page: number, pageSize: number
         const messages = chat ? chat.messages.slice(-20) : [];
         // const messages=await chat?.messages || [];
         return messages;
-          
     }catch(err){
-
         console.error("An error occured while getting messages from monog DB : ",err);
         return [];
     }
@@ -190,7 +209,6 @@ const getChatsByAdminId = async (adminId: string, page: number, pageSize: number
 
 
   interface createUpdateChatInterface{
-
     campaignId:string;
     userId:string;
     channel:string;
@@ -230,7 +248,6 @@ const getChatsByAdminId = async (adminId: string, page: number, pageSize: number
           isBot,
           userId: null,
         });
-  
         await chat.save();
       } else {
         // Create a new chat document
@@ -254,7 +271,6 @@ const getChatsByAdminId = async (adminId: string, page: number, pageSize: number
             },
           },
         });
-  
         await newChat.save();
         return true;
       }
@@ -264,21 +280,14 @@ const getChatsByAdminId = async (adminId: string, page: number, pageSize: number
     }
   };
 
-
-
-
-
   const createChat=async(data:any)=>{
     try{
       const newChat=new Chat({
         ...data
       });
-
       await newChat.save();
-
       return true;
     }catch(err){
-
       console.error("An error occured while creating chat : ",err);
       return false;
     }
@@ -356,17 +365,11 @@ const getWhatsAppChatId = async (phoneNumberId: string, phone: string) => {
 
 
 const getChatData=async(chatId:string)=>{
-  
   try{
-
-    const chat=await Chat.findOne({
-      _id:chatId
-    });
-
+    const chat=await Chat.findOne({_id:chatId});
     if(!chat){
       return null
     }
-
     return chat;
   }catch(err){
     console.error("An error occured while getting chat type : ",err);
@@ -376,16 +379,13 @@ const getChatData=async(chatId:string)=>{
 
 
 const incrementMessageLedger=async(userId:string,subscriptionId:string,type:string)=>{
-
   try{
-
     await db.sequelize.query(`INSERT INTO ledger (userId,subscriptionId,type,message) VALUES (:userId,:subscriptionId,:type,:message)`,
       {
         replacements:{userId,subscriptionId,type,message:`${type} message sent`},
         type:QueryTypes.INSERT
       }
     );
-
     return true;
   }catch(err){
     console.error(err);
@@ -393,4 +393,4 @@ const incrementMessageLedger=async(userId:string,subscriptionId:string,type:stri
   }
 }
 
-export {getChatsByAdminId, getLeads,createNewChat,getMessages,addMessage,checkCompanyForAgent,handleAgentHandover,createOrUpdateChat,setAgentHandover,createChat,getWhatsAppChatId,getChatData,incrementMessageLedger,getFlows};
+export {getChatsByAdminId, getLeads,setLeads,createNewChat,getMessages,addMessage,checkCompanyForAgent,handleAgentHandover,createOrUpdateChat,setAgentHandover,createChat,getWhatsAppChatId,getChatData,incrementMessageLedger,getFlows};

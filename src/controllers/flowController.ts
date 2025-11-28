@@ -5,7 +5,7 @@ import { generateParentFlow,generateEmails,generateCalls,generateChats,generateW
 
 import db from "../models/conn";
 
-import {upsertFlowConfig,getFlowConfigFromDB,getSubFlowDataFromDB,getParentFlowPrompt,saveSubFlowToDB,getAudiencesFromDB,saveFlowConfigDB,getFlowConfigDB,getFlowDataFromDB,updateFlowDescriptionData,updateSubFlowDB,getSubflowsConfig} from '../models/flowModel';
+import {upsertFlowConfig,getFlowConfigFromDB,getSubFlowDataFromDB,getParentFlowPrompt,saveSubFlowToDB,getAudiencesFromDB,updateFlowConfig,getFlowConfigDB,getFlowDataFromDB,updateFlowDescriptionData,updateSubFlowDB,getSubflowsConfig} from '../models/flowModel';
 import { createCampaign, getCampaignIdBySlug, updateCampaignAudience } from '../models/campaignModel';
 
 import {encryptId,decryptId} from "../utils/encryptDecrypt";
@@ -14,23 +14,29 @@ import { jsonrepair } from "jsonrepair";
 
 
 
+const slugify = (str: string) => {
+  return str
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')  // remove non-url-safe chars
+    .replace(/\s+/g, '-')          // spaces → dashes
+    .replace(/-+/g, '-')           // collapse multiple dashes
+    .replace(/^-+|-+$/g, '');      // trim edges
+};
+
 const createParentFlow=async(req:Request,res:Response):Promise<any>=>{
-
     try{
-
         const {userId,description,companyId,data,subscriptionId} =req.body;
-
         if(!description || !userId || !companyId){
             return res.status(400).send({status:false,message:"Unauthorized Request"});
         }
-
-
+        
         if(!data){
             return res.status(400).send({status:false,message:"Required data"});
         }
 
         const flow=data;        
-        const slug=`${flow.product_name.split(" ").join("-")}-${flow.target.split(" ").join("-")}-${flow.leads}-${new Date().getTime()}`.replaceAll("/","-").replaceAll(",","").replace(/[^a-zA-Z0-9 ]/g, ''); //remove any special chars
+        const slug = slugify(`${flow.product_name} ${flow.target} ${flow.leads} ${Date.now()}`);
         const Flows=db.flows;
 
         //creating new flow
@@ -94,7 +100,6 @@ const getEncryptedId=async(req:Request,res:Response):Promise<any>=>{
 
 const getWebConfig = async (req: Request, res: Response): Promise<any> => {
     try {
-
         const { encryptedId } = req.query;
         const origin = req.get("origin");
         if (!encryptedId || typeof encryptedId !== 'string') {
@@ -123,12 +128,9 @@ const getWebConfig = async (req: Request, res: Response): Promise<any> => {
 const validateFlowPrompt=async(req:Request,res:Response):Promise<any>=>{
     try{
         const {prompt}=req.body;
-
         if(!prompt){
-
             return res.status(400).send({status:false,message:"Prompt required"});
         }
-        
         const data=JSON.parse(await generateParentFlow(prompt));
         //saving in DB
         return res.status(200).send({status:true,data});
@@ -169,9 +171,9 @@ const getSubFlow = async (req: Request, res: Response): Promise<any> => {
         }
         const subFlowData = await getSubFlowDataFromDB(slug, typeToTypeId[type],userId);
         // Ensure subFlowData is properly formatted
-        const flowDataExists = Boolean(subFlowData.length > 0 && (subFlowData[0].flowData || subFlowData[0].json));
-
-        if (flowDataExists) {
+        const subFlowDataDataExists = Boolean(subFlowData.length > 0 && (subFlowData[0].flowData || subFlowData[0].json));
+        // if presennnt sennd else create new
+        if (subFlowDataDataExists) {
             return res.status(200).json({ status: true, data: subFlowData[0], isNew: false });
         }
         // If subFlowData is empty, generate new data
@@ -182,27 +184,34 @@ const getSubFlow = async (req: Request, res: Response): Promise<any> => {
             res.status(404).send({status:false,message:"Campaign not found"});
             return;
         }
-        const parentFlowPrompt = await getParentFlowPrompt(slug);
-        if (!parentFlowPrompt) {
+        const parentFlowData = await getParentFlowPrompt(slug);
+        if (!parentFlowData) {
             return res.status(404).json({ status: false, message: "Parent flow prompt not found" });
         }
+        const passedData=parentFlowData[0].json as string;
 
         let generatedData=[];
         switch(type){
             case "email":
-                generatedData = JSON.parse(jsonrepair(await generateEmails(parentFlowPrompt)));
+                generatedData = JSON.parse(jsonrepair(await generateEmails(passedData)));
                 break;
             
             case "call":
-                generatedData = JSON.parse(jsonrepair(await generateCalls(parentFlowPrompt)));
+                generatedData = JSON.parse(jsonrepair(await generateCalls(passedData)));
                 break;
             
             case "chat":
-                generatedData = JSON.parse(jsonrepair(await generateChats(parentFlowPrompt)));
+                generatedData = JSON.parse(jsonrepair(await generateChats(passedData)));
                 break;
-            
-            case "whatsapp":
-                generatedData = JSON.parse(jsonrepair(await generateWhatsAppChats(parentFlowPrompt)));
+
+            case "whatsapp": 
+                // set template as first node
+                const subFlowWhatsapp = await getSubflowsConfig(userId, slug as string, "4");
+                const templateId = subFlowWhatsapp[0]?.configData.templateId;
+                if (!templateId) {
+                    return res.status(400).json({status: false, message: "WhatsApp template not configured. Please configure and try again."});
+                }
+                generatedData = JSON.parse(jsonrepair(await generateWhatsAppChats(passedData, templateId)));
                 break;
         }
         console.log("Generated Data: ",generatedData);
@@ -244,25 +253,20 @@ const saveSubFlow=async(req : Request,res:Response) : Promise<any>=>{
 }
 
 
-
-const setFlowConfig=async(req : Request,res:Response) : Promise<any>=>{
-    try{
-        const {botName,botDescription,slug,userId}=req.body;
-
-        const configData=JSON.stringify({botName,botDescription});
-        const isDataSaved=await saveFlowConfigDB(configData,userId,slug);
-
-        if(!isDataSaved){
-            return res.status(400).send({status : false,message:"Could not save config. Try again later"});
-        }
-
-        return res.status(200).send({status:true,message:"Flow config saved"});
-    }catch(err){
-
-        console.error("An error occured while setting flow config : ",err);
-        return res.status(500).send({status:false,message:"Could not save config. Try again"});
+const setFlowConfig = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { botName, botDescription, slug, userId } = req.body;
+    const isUpdated = await updateFlowConfig(botName, botDescription, userId, slug);
+    if (!isUpdated) {
+      return res.status(400).send({ status: false, message: "Could not save config. Try again later" });
     }
-}
+    return res.status(200).send({ status: true, message: "Flow config saved" });
+  } catch (err) {
+    console.error("An error occurred while setting flow config:", err);
+    return res.status(500).send({ status: false, message: "Could not save config. Try again" });
+  }
+};
+
 
 
 const getFlowConfig=async(req : Request, res: Response) : Promise<any>=>{
@@ -290,7 +294,6 @@ const getFlowData=async(req:Request,res:Response):Promise<any>=>{
         if(!data){
             return res.status(404).send({status:false,message:"Invalid slug"});
         }
-
         //getting audiences
         const audiences=await getAudiencesFromDB(userId);
 
@@ -338,16 +341,16 @@ const getFlowData=async(req:Request,res:Response):Promise<any>=>{
             keywordId:data?.keywordId,
             audienceId:data?.audienceId,
             keywords:data?.keywords,
-            template:data.template,
+            // template:data.template, // to be removed in future
             productName:productDetails?.product_name,
             productType:productDetails?.product_type,
             productTarget:productDetails?.target,
             source:productDetails?.leads,
             website:productDetails?.website || null,
-            emailAgent:Boolean(botsConfig?.some((c:any)=>c?.subFlowTypes=='1')),
-            whatsappAgent:Boolean(botsConfig?.some((c:any)=>c?.subFlowTypes=='4')),
-            webAgent:Boolean(botsConfig?.some((c:any)=>c?.subFlowTypes=='2')),
-            callAgent:Boolean(botsConfig?.some((c:any)=>c?.subFlowTypes=='3')),
+            emailAgent:Boolean(botsConfig?.some((c:any)=>c?.subFlowTypes=='1')?true: Number(productDetails?.features?.email) > 0),
+            whatsappAgent:Boolean(botsConfig?.some((c:any)=>c?.subFlowTypes=='4')?true: Number(productDetails?.features?.whatsapp) > 0),
+            webAgent:Boolean(botsConfig?.some((c:any)=>c?.subFlowTypes=='2')?true: Number(productDetails?.features?.chatbot) > 0),
+            callAgent:Boolean(botsConfig?.some((c:any)=>c?.subFlowTypes=='3')?true: Number(productDetails?.features?.call) > 0),
             audiences,
             botsConfig
         }

@@ -3,10 +3,8 @@ import { QueryTypes } from "sequelize";
 
 const saveLeads = async (data: any[], companyId: string, audience: string, userId: string) => {
   const t = await db.sequelize.transaction();
-
   try {
     if (!data.length) return true;
-
     // Insert into audience table
     const [insertResult]: any = await db.sequelize.query(
       'INSERT INTO audience (userId, companyId, name) VALUES (:userId, :companyId, :name)',
@@ -48,17 +46,13 @@ const saveLeads = async (data: any[], companyId: string, audience: string, userI
 
     if (values.length > 0) {
       const query = `
-        INSERT INTO leads (
-          companyId,audienceIds,name, email, phone,website
-        ) VALUES ${placeholders.join(', ')}
-      `;
+        INSERT INTO leads (companyId,audienceIds,name, email, phone,website) VALUES ${placeholders.join(', ')}`;
 
       await db.sequelize.query(query, {
         replacements: values,
         transaction: t,
         type: QueryTypes.INSERT,
       });
-
 
       const masterLeadsQuery=`INSERT INTO masterLeads(name,email,phone,website,industry) VALUES ${placeholders.join(', ')}`;
 
@@ -80,10 +74,7 @@ const saveLeads = async (data: any[], companyId: string, audience: string, userI
         type: QueryTypes.UPDATE,
       }
     );
-
-
     //inserting in ledger
-    
     await t.commit();
     return true;
 
@@ -96,24 +87,18 @@ const saveLeads = async (data: any[], companyId: string, audience: string, userI
 
 
 const getLeadMail=async(id:string)=>{
-
     try{
-
         const result=await db.sequelize.query("SELECT leads.email FROM leads WHERE id=:id AND isDeleted='0'",
             {
                 replacements:{id},
                 type:QueryTypes.SELECT
             }
         );
-
-
         if('email' in result[0]){
             return result[0].email;
         }
-
         return null;
     }catch(err : any){
-
         console.error("An error occured while getting lead mail : ",err.message);
         return null;
     }
@@ -121,10 +106,7 @@ const getLeadMail=async(id:string)=>{
 
 
 const transferLeadsFromMaster=async(userId:string,companyId:string)=>{
-
     try{
-
-
         const [audienceInsertResult] = await db.sequelize.query(
         `INSERT INTO audience (userId, companyId, name) 
         VALUES (:userId, :companyId, 'Unlocked Audience')`,
@@ -133,8 +115,6 @@ const transferLeadsFromMaster=async(userId:string,companyId:string)=>{
             type: QueryTypes.INSERT,
         }
         );
-
-
         const audienceId = audienceInsertResult; 
         await db.sequelize.query(
         `INSERT INTO leads (companyId, name, email, phone, audienceIds)
@@ -148,8 +128,6 @@ const transferLeadsFromMaster=async(userId:string,companyId:string)=>{
             type: QueryTypes.INSERT,
         }
         );
-
-
         return {audienceId,name:"Unlocked Audience"};
 
     }catch(err){
@@ -160,9 +138,7 @@ const transferLeadsFromMaster=async(userId:string,companyId:string)=>{
 
 
 const checkAudience=async(userId:string,keywordId:string)=>{
-
     try{
-
         const res=await db.sequelize.query("SELECT audienceId,keywords,nextPageToken from crawl WHERE userId=:userId AND id=:keywordId AND isDeleted='0' AND status='1' ORDER BY createdOn DESC",
             {
                 replacements:{userId,keywordId},
@@ -170,17 +146,10 @@ const checkAudience=async(userId:string,keywordId:string)=>{
 
             }
         );
-
-
         if(res.length && 'audienceId' in res[0] && 'keywords' in res[0] && "nextPageToken" in res[0]){
-
             return {audienceId:res[0].audienceId || -1,audienceName:res[0].keywords,token:res[0].nextPageToken};
         }
-
-
         return {audienceId:false,audienceName:"",token:null};
-
-
     }catch(err){
         console.error(err);
         return {audienceId:false,audienceName:"",token:null};
@@ -190,9 +159,7 @@ const checkAudience=async(userId:string,keywordId:string)=>{
 
 
 const updateCrawl=async(userId:string,status:string,keywords:string,nextPageToken:string)=>{
-
     try{
-
         await db.sequelize.query("UPDATE crawl SET status=:status,nextPageToken=:nextPageToken WHERE userId=:userId AND keywords=:keywords",
             {
                 replacements:{userId,keywords,status,nextPageToken},
@@ -202,7 +169,6 @@ const updateCrawl=async(userId:string,status:string,keywords:string,nextPageToke
 
         return true;
     }catch(err){
-
         console.error(err);
         return false;
     }

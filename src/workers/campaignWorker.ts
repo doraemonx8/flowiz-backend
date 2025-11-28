@@ -47,10 +47,10 @@ interface CampaignJobData {
   userEmailData:Array<any>;
 }
 
+
 // Campaign worker
-const campaignWorker = new Worker<CampaignJobData>("campaign-queue",
-  async (job: Job<CampaignJobData>) => {
-    const { leads, subFlows,campaignId,companyId,userId,isEmailAgent,isCallAgent,isWhatsappAgent,userEmailData} = job.data;
+const campaignWorker = new Worker<CampaignJobData>("campaign-queue", async (job: Job<CampaignJobData>) => {
+    const {leads, subFlows,campaignId,companyId,userId,isEmailAgent,isCallAgent,isWhatsappAgent,userEmailData} = job.data;
 
     //updating campaign status
     await updateCampaignStatus(campaignId,'running');
@@ -60,49 +60,38 @@ const campaignWorker = new Worker<CampaignJobData>("campaign-queue",
     // Running campaign for each lead
     for (const lead of leads) {
       leadCount++;
-      const { phone, email, id,name } = lead;
+      const { phone, email, id, name } = lead;
 
       for (const subFlow of subFlows) {
 
-
         if (subFlow.type === "1" && isEmailAgent && email) {
           console.log("Adding job in email queue");
-
-         
+        
           //looping over the subflow to add email job
           const emailJobsData:Array<any>=createEmailJobsDataFromFlow(subFlow,name);
-
-
           //getting userEmail
           const userEmail=userEmailData[Math.ceil(leadCount/100)-1];
 
-          
           for (const emailData of emailJobsData) {
             const payload = { subject: emailData.subject, body: emailData.body, leadId: id,flowId:subFlow.id, email, phone, campaignId, companyId,userId,nodeId:emailData.id,flowData:subFlow.flowData || subFlow.json,userEmailData:userEmail };
-          
+        
             if (!emailData.delay) {
-
               //adding in jobs
               const jobId=`${new Date().getTime()}_email_${id}`;
               await addJob(jobId as string,companyId,userId,subFlow.id,campaignId,id as string,"email");
               await emailQueue.add("email-job", payload,{jobId,delay:(leadCount-1) * 1000*120}); //default 2min delay for each mail
-
-              
             } else {
               const delayHour = Number(emailData.delay.hours);
               const delayMin = Number(emailData.delay.mins);
-          
               // Calculate delay in milliseconds
               const delayInMs = (delayHour * 60 * 60 * 1000) + (delayMin * 60 * 1000) + ((leadCount-1) * 1000*120);
-              
+  
               const jobId=`${new Date().getTime()}_email_${id}`;
               await emailQueue.add("email-job", payload, { delay: delayInMs,jobId });
               //adding in jobs
               await addJob(jobId,companyId,userId,subFlow.id,campaignId,id as string,"email");
             }
           }
-          
-          
         } else if (subFlow.type === "2") {
           console.log("Skipping chatbot flow");
 

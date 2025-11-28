@@ -1,7 +1,8 @@
 import { getCampaignData } from '../models/campaignModel';
-import { getParentFlowPrompt, saveSubFlowToDB } from '../models/flowModel';
-import { generateCalls, generateChats, generateEmails } from '../utils/flowPrompt';
+import { getParentFlowPrompt, getSubflowsConfig, saveSubFlowToDB } from '../models/flowModel';
+import { generateCalls, generateChats, generateEmails, generateWhatsAppChats } from '../utils/flowPrompt';
 import { Request, Response, NextFunction } from 'express';
+import { jsonrepair } from "jsonrepair";
 
 
 const createSubFlowsForCampaign=async(req:Request,res:Response,next:NextFunction):Promise<any>=>{
@@ -12,11 +13,13 @@ const createSubFlowsForCampaign=async(req:Request,res:Response,next:NextFunction
         }
         const campaignData=await getCampaignData(campaignId);
         const subFlows=JSON.parse(campaignData[0].subFlows);
-        const parentFlowPrompt = await getParentFlowPrompt(slug);
+        const parentFlowData = await getParentFlowPrompt(slug);
         
-        if (!parentFlowPrompt) {
+        if (!parentFlowData || parentFlowData.length === 0) {
             return res.status(404).json({ status: false, message: "Parent flow prompt not found" });
         }
+
+        const passedData=parentFlowData[0].json as string;
 
         let isEmailAgent=false;
         let isCallAgent=false;
@@ -24,7 +27,6 @@ const createSubFlowsForCampaign=async(req:Request,res:Response,next:NextFunction
         let isWhatsappAgent=false;
 
         for (const agent of agents){
-
             switch(agent){
 
                 case "email":
@@ -32,24 +34,21 @@ const createSubFlowsForCampaign=async(req:Request,res:Response,next:NextFunction
                     const isEmailFlow=subFlows.filter((subFlow : any)=> subFlow.type==1 && (subFlow.json || subFlow.flowData)).length;
                     if(!isEmailFlow){
                     //EMAIL
-                    const emailGeneratedData = JSON.parse(await generateEmails(parentFlowPrompt));
-                    const emailSubFlowId=await saveSubFlowToDB(JSON.stringify(emailGeneratedData),slug,"1",userId,campaignId);
-                    subFlows.push({type:"1",id:emailSubFlowId,flowData:null,json:emailGeneratedData});
-
+                        const emailGeneratedData = JSON.parse(jsonrepair(await generateEmails(passedData)));
+                        const emailSubFlowId= await saveSubFlowToDB(JSON.stringify(emailGeneratedData),slug,"1",userId,campaignId);
+                        subFlows.push({type:"1",id:emailSubFlowId,flowData:null,json:emailGeneratedData});
                     }
                     break;
                 
                 case "web":
                     isWebAgent=true;
                     const isWebFlow=subFlows.filter((subFlow:any)=>subFlow.type==2).length;
-
                     if(!isWebFlow){
                         //WEB CHAT
-                        const chatGeneratedData = JSON.parse(await generateChats(parentFlowPrompt));
+                        const chatGeneratedData = JSON.parse(jsonrepair(await generateChats(passedData)));
                         const chatSubFlowId=await saveSubFlowToDB(JSON.stringify(chatGeneratedData),slug,"2",userId,campaignId);
                         subFlows.push({type:"2",id:chatSubFlowId,flowData:null,json:chatGeneratedData});
                     }
-
                     break;
                 
                 case "call":
@@ -57,22 +56,24 @@ const createSubFlowsForCampaign=async(req:Request,res:Response,next:NextFunction
                     const isCallFlow=subFlows.filter((subFlow:any)=>subFlow.type==3).length;
 
                     if(!isCallFlow){
-
                         //CALL
-                        const callGeneratedData = JSON.parse(await generateCalls(parentFlowPrompt));
+                        const callGeneratedData = JSON.parse(jsonrepair(await generateCalls(passedData)));
                         const callSubFlowId=await saveSubFlowToDB(JSON.stringify(callGeneratedData),slug,"3",userId,campaignId);
                         subFlows.push({type:"3",id:callSubFlowId,flowData:null,json:callGeneratedData});
                     }
 
                     break;
                 case "whatsapp":
-
                     isWhatsappAgent=true;
                     const isWhatsAppFlow=subFlows.filter((subFlow:any)=>subFlow.type==4).length;
-
                     if(!isWhatsAppFlow){
                         //WHATSAPP
-                        const generatedData = JSON.parse(await generateChats(parentFlowPrompt));
+                        const subFlowWhatsapp = await getSubflowsConfig(userId, slug as string, "4");
+                        const templateId = subFlowWhatsapp[0]?.configData.templateId;
+                        if (!templateId) {
+                            return res.status(400).json({status: false, message: "WhatsApp template not configured. Please configure and try again."});
+                        }
+                        const generatedData = JSON.parse(jsonrepair(await generateWhatsAppChats(passedData, templateId)));
                         const whatsAppSubFlowId=await saveSubFlowToDB(JSON.stringify(generatedData),slug,"4",userId,campaignId);
                         subFlows.push({type:"4",id:whatsAppSubFlowId,flowData:null,json:generatedData});
                     }
@@ -80,22 +81,16 @@ const createSubFlowsForCampaign=async(req:Request,res:Response,next:NextFunction
                 
             }
         }
-    
        req.body.isEmailAgent=isEmailAgent;
        req.body.isCallAgent=isCallAgent;
        req.body.isWebAgent=isWebAgent;
        req.body.isWhatsappAgent=isWhatsappAgent;
        req.body.subFlows=subFlows;
        req.body.campaignData=campaignData;
-
        next();
-
     }catch(err){
-
         console.error(err);
         return res.status(500).send({status:false,message:"Could not create agent workflows. Try again later"});
     }
 }
-
-
 export default createSubFlowsForCampaign;

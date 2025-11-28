@@ -17,7 +17,6 @@ interface UserEmailDetails {
     password:string
   }
 
-
 const connection = new IORedis({ 
     host:'127.0.0.1',
     port:6381,  
@@ -63,7 +62,6 @@ const emailWorker=new Worker('email-queue',async(job :any)=>{
     
     //checking if chat exists
     const chatId=await isEmailChatPresent(userId,leadId,companyId,flowId);
-
     if(!chatId){ //creating new chat
           const data={
         _id:Math.floor(10000000 + Math.random() * 90000000).toString(),
@@ -103,7 +101,6 @@ const emailWorker=new Worker('email-queue',async(job :any)=>{
     })
 
     }else{ //adding message in chat
-
         await addMailMessage(chatId as string,
             {
                 isBot:true,isAgent:false,
@@ -125,8 +122,6 @@ const emailWorker=new Worker('email-queue',async(job :any)=>{
     }
   
 
-   
-    
 },{connection,concurrency:2, limiter: { max: 3, duration: 1000 }});
 
 
@@ -175,7 +170,7 @@ const whatsappWorker=new Worker('whatsapp-queue',async(job : any)=>{
             messages: [{isBot:true,flowNodeId:nodeId,message,createdOn:Math.floor(Date.now() / 1000)}],
             createdOn: Math.floor(Date.now() / 1000),
         }
-    const chatId=await createChat(data);
+        const chatId=await createChat(data);
 
           //send event for new chat added
           sendMessageToAgent(companyId,{type:"chatAdded",

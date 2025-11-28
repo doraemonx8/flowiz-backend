@@ -67,7 +67,7 @@ const getFlowConfigFromDB=async(flowId:string | number)=>{
 const getSubFlowDataFromDB = async (slug: string, type: string,userId:string): Promise<Array<{ flowData: string; flowShowData: string; json: string }>> => {
     try {
         const data = await db.sequelize.query(
-            `SELECT subFlows.flowData, subFlows.flowShowData, subFlows.json 
+            `SELECT subFlows.flowData, subFlows.flowShowData, subFlows.json
              FROM subFlows 
              INNER JOIN flows ON flows.id = subFlows.flowId 
              WHERE flows.slug = :slug 
@@ -85,21 +85,19 @@ const getSubFlowDataFromDB = async (slug: string, type: string,userId:string): P
         return [];
     }
 };
-const getParentFlowPrompt = async (slug: string): Promise<string> => {
+const getParentFlowPrompt = async (slug: string): Promise<Array<{ prompt: string, json: string }>> => {
     try {
         const result = await db.sequelize.query(
-            `SELECT flows.prompt FROM flows WHERE flows.slug = :slug AND flows.isDeleted = '0'`,
+            `SELECT flows.prompt, flows.json FROM flows WHERE flows.slug = :slug AND flows.isDeleted = '0'`,
             {
                 replacements: { slug },
                 type: QueryTypes.SELECT
             }
         );
-
-        const promptData = result as Array<{ prompt: string }>;
-        return promptData.length > 0 ? promptData[0].prompt : "";
+        return result as Array<{ prompt: string, json: string }>;
     } catch (err) {
         console.error("An error occurred while getting parent flow prompt:", err);
-        return "";
+        return [];
     }
 };
 
@@ -173,11 +171,9 @@ const getAudiencesFromDB=async(userId:string)=>{
     }
 }
 
-
+// not a good implementation replaces with updateFlowConfig
 const saveFlowConfigDB=async(configData:any,userId:string,slug:string)=>{
-
     try{
-
         const result = await db.sequelize.query(
             `UPDATE flows
              SET flows.configData = :configData 
@@ -195,6 +191,27 @@ const saveFlowConfigDB=async(configData:any,userId:string,slug:string)=>{
         return false;
     }
 }
+
+const updateFlowConfig = async (botName: string, botDescription: string, userId: string, slug: string) => {
+  try {
+    await db.sequelize.query(`
+      UPDATE flows
+      SET json = JSON_SET(json,
+          '$.bot.name', :botName,
+          '$.bot.description', :botDescription)
+      WHERE slug = :slug AND userId = :userId AND isDeleted = '0'`,
+      {
+        replacements: { botName, botDescription, userId, slug },
+        type: QueryTypes.UPDATE,
+      }
+    );
+    return true;
+  } catch (err) {
+    console.error("An error occurred while updating JSON bot config:", err);
+    return false;
+  }
+};
+
 
 
 const getFlowConfigDB=async(slug:string,userId:string)=>{
@@ -405,20 +422,24 @@ const updateSubFlowDB=async(userId:string,campaignId:string,flowData:string,flow
     }
 }
 
-const getSubflowsConfig=async(userId:string,slug:string)=>{
-    try{
-        const res=await db.sequelize.query(
-            `SELECT subFlows.configData, subFlows.id, subFlows.type AS subFlowTypes
-            FROM subFlows 
-            INNER JOIN flows ON flows.id = subFlows.flowId 
-            WHERE flows.userId = :userId AND flows.slug = :slug AND flows.isDeleted = '0';`,
-            {replacements:{userId,slug},type:QueryTypes.SELECT}
-        );
-        return res;
-    }catch(err){
-        console.error(err);
-        return null;
-    }
-}
+const getSubflowsConfig = async (userId: string,slug: string,type?: string): Promise<Array<{ id: number; subFlowTypes: string; configData: any }>> => {
+  try {
+    const query = `SELECT subFlows.configData, subFlows.id, subFlows.type AS subFlowTypes
+      FROM subFlows INNER JOIN flows ON flows.id = subFlows.flowId
+      WHERE flows.userId = :userId AND flows.slug = :slug AND flows.isDeleted = '0' 
+        ${type ? "AND subFlows.type = :type" : ""}
+    `;
+    const result = await db.sequelize.query(query, {
+      replacements: { userId, slug, type },
+      type: QueryTypes.SELECT
+    });
+    return result as Array<{ id: number; subFlowTypes: string; configData: any }>;
+  } catch (err) {
+    console.error("Error fetching subflow config:", err);
+    return [];
+  }
+};
 
-export {upsertFlowConfig,getFlowConfigFromDB,getSubFlowDataFromDB,getParentFlowPrompt,saveSubFlowToDB,getAudiencesFromDB,saveFlowConfigDB,getFlowConfigDB,getCompanyIdByFlow,getFlowIdBySlug,getSubFlowData,getUserIdBySubFlowId,getFlowDataFromDB,updateFlowDescriptionData,updateSubFlowDB,getSubflowsConfig};
+
+
+export {upsertFlowConfig,getFlowConfigFromDB,getSubFlowDataFromDB,getParentFlowPrompt,saveSubFlowToDB,getAudiencesFromDB,updateFlowConfig,getFlowConfigDB,getCompanyIdByFlow,getFlowIdBySlug,getSubFlowData,getUserIdBySubFlowId,getFlowDataFromDB,updateFlowDescriptionData,updateSubFlowDB,getSubflowsConfig};

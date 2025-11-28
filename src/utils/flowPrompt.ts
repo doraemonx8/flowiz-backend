@@ -9,24 +9,23 @@ Extract information from the user request and format it as a JSON object with th
   - If no product is mentioned, use null
   
 - 'leads' (string): 
-  - Must be one of: ["google", "linkedin", "upload"]
+  - Must be one of: ["google", "upload"]
   - Selection logic:
     - "upload" if user mentions their own data/list/contacts
-    - "linkedin" if LinkedIn or similar professional networks are mentioned
-    - "google" if Google or general search is mentioned
-    - Default to "google" if no source is specified
+    - "google" if Google or general search or crawling is mentioned
+    - Default to "upload" if no source is specified
     
 - 'target' (string):
   - The target audience, market segment, or industry
   - If no target is specified, then identify it yourself based on the user's request
   
-- 'product_type' (string)
+- 'product_type' (string):
 - The type of business the user's product does
 
 - 'features' (object):
-  - Communication channels on which the user wants to interact with their leads:
+  - AI Agent communication channels on which the user wants to interact with their leads:
     - 'email' (number): Count of emails user want to send to their lead(s) 
-    - whatsApp' (number): Count of WhatsApp messages user wants to send to their lead(s)
+    - 'whatsapp' (number): Count of WhatsApp messages user wants to send to their lead(s)
     - 'call' (number): Count of phone calls user wants to call to their lead(s)
     - 'chatbot' (number): 1 if user want a web chatbot for their webiste, 0 if not
   - Set any unmentioned channel to 0
@@ -36,15 +35,15 @@ Extract information from the user request and format it as a JSON object with th
 -If no url has been provided then use null
 
 -'bot' (object)
-  -Bot name & description from description
-    -'name' (string) : name of the bot that should be used according to you
-    -'description'(string) : short description of the bot according to you
+  - AI Agent name & description from description
+    -'name' (string) : name of the agent that should be used according to you
+    -'description'(string) : short description of the agent according to you
 
 ## Response Format
 {
   "product_name": string | null,
   "product_type":string,
-  "leads": "google" | "linkedin" | "upload",
+  "leads": "google" | "upload",
   "target": string,
   "website":string
   "features": {
@@ -74,7 +73,6 @@ const checkFlowPrompt = `You are an expert NLP agent. Your task is to analyze a 
 
     Make sure to return the 1st letter as capital in the values.
 `;
-
 
 const generateEmailsPromptOld=`You are an expert email marketing strategist. Analyze the product description to determine:
 - Optimal number of emails
@@ -112,7 +110,7 @@ Your task is to generate ONLY the email content (subject + body) inside a fixed 
 Do NOT change the structure, number of nodes, keys, IDs, or their order.
 
 Rules:
-- Analyze the product description.
+- Analyze the provided product JSON.
 - Use {{lead_name}} exactly as the placeholder for the recipient.
 - No signatures.
 - No spam-trigger words.
@@ -188,7 +186,7 @@ You MUST output exactly this structure, only filling the empty fields:
 Fill ONLY the empty strings with compelling email content based on the product description.`;
 
 
-const generateCallsPrompt = `You are an expert outbound call strategist. Analyze the product description to determine:
+const generateCallsPrompt = `You are an expert outbound call strategist. Analyze the provided product JSON to determine:
 
 Optimal number of calls
 
@@ -315,7 +313,7 @@ Output Instructions:
 
 
 const generateChatsPrompt = `You are an expert in conversational marketing
-Your task: Generate a optimised chatbot flow based as a JSON array using ONLY these two node types, on the product description provided.
+Your task: Generate a optimised chatbot flow based as a JSON array using ONLY these two node types, based on the provided product JSON.
 
 1. Chat node:
 {
@@ -359,8 +357,9 @@ Your task is to generate ONLY the WhatsApp messages inside a fixed node structur
 Do NOT change the structure, number of nodes, keys, IDs, or their order.
 
 Rules:
-- Analyze the product description.
+- Analyze the provided product JSON.
 - Use {{lead_name}} exactly as the placeholder for the recipient.
+- Fill {{templateId}} from the provided 'templateId'.
 - Keep messages short, conversational, and WhatsApp-friendly.
 - No spam-trigger words.
 - Keep JSON valid.
@@ -371,6 +370,7 @@ You MUST output exactly this structure, only filling the empty fields:
     "id": "chat1",
     "type": "whatsapp",
     "message": "",
+    "templateId": "{{templateId}}",
     "next": ["decision1", "decision2", "followUp1"]
   },
   {
@@ -476,13 +476,13 @@ const checkFlow=async(prompt:string):Promise<string>=>{
   }
 }
 
-const generateEmails=async(prompt:string):Promise<string>=>{
+const generateEmails=async(json:string):Promise<string>=>{
   try{
     const response=await openai.chat.completions.create({
       model: 'gpt-5-chat-latest',
       messages: [
         { role: 'system', content: generateEmailsPrompt },
-        { role: 'user', content: `${prompt}`}
+        { role: 'user', content: `Product JSON :${json}`}
       ],
     });
 
@@ -504,7 +504,7 @@ const generateEmails=async(prompt:string):Promise<string>=>{
   }
 }
 
-const generateCalls=async(prompt:string):Promise<string>=>{
+const generateCalls=async(json:string):Promise<string>=>{
 
   try{
 
@@ -512,7 +512,7 @@ const generateCalls=async(prompt:string):Promise<string>=>{
       model: 'gpt-4.1-mini',
       messages: [
         { role: 'system', content: generateCallsPrompt },
-        { role: 'user', content: `${prompt}`}
+        { role: 'user', content: `Product JSON :${json}`}
       ],
       temperature: 0.4,
     });
@@ -530,44 +530,38 @@ const generateCalls=async(prompt:string):Promise<string>=>{
 }
 
 
-const generateChats=async(prompt:string):Promise<string>=>{
+const generateChats=async(json:string):Promise<string>=>{
   try{
     const response=await openai.chat.completions.create({
       model: 'gpt-5-chat-latest',
       messages: [
         { role: 'system', content: generateChatsPrompt },
-        { role: 'user', content: `${prompt}`}
+        { role: 'user', content: `Product JSON :${json}`}
       ],
     });
 
   const data=response.choices[0]?.message?.content;
-
   return data ? data : "[]";
-
   }catch(err){
-
     console.error("An error occured while checking flow prompt : ",err);
     return "[]";
   }
 }
 
 
-const generateWhatsAppChats=async(prompt:string):Promise<string>=>{
+const generateWhatsAppChats=async(json:string, templateId:string):Promise<string>=>{
   try{
     const response=await openai.chat.completions.create({
       model: 'gpt-5-chat-latest',
       messages: [
         { role: 'system', content: generateWhatsAppChatsPrompt },
-        { role: 'user', content: `${prompt}`}
+        { role: 'user', content: `templateId: ${templateId},\n Product JSON :${json}`}
       ],
     });
 
   const data=response.choices[0]?.message?.content;
-
   return data ? data : "[]";
-
   }catch(err){
-
     console.error("An error occured while checking flow prompt : ",err);
     return "[]";
   }
