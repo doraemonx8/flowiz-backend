@@ -18,9 +18,7 @@ interface SendEmailInterface{
 
 
 const sendEmail=async(params:SendEmailInterface)=> {
-
    try{
-
     const transporter = nodemailer.createTransport({
         host:params.host, 
         port: 587,
@@ -30,9 +28,7 @@ const sendEmail=async(params:SendEmailInterface)=> {
           pass: params.userPassword 
         },
       });
-    
       const mailOptions = {from:params.from,to:params.to,subject:params.subject,html:params.body.replaceAll("\n","<br>")};
-    
       const info = await transporter.sendMail(mailOptions);
       console.log('Message sent: %s', info.messageId);
       return {isSent:true,messageId:info.messageId};
@@ -79,22 +75,16 @@ const sendEmailReply=async(params:Record<string,any>)=>{
 
 
 const verifyEmail=async(params:SendEmailInterface,userId:string,subscriptionId:string)=>{
-
   try{
-
     const {isSent,messageId}=await sendEmail(params);
-    
     //updating status in DB
     if(isSent){
       const curr=new Date();
       const numberToMonth=["Jan","Feb","Mar","Apr","May","Jun","July","Aug","Sep","Oct","Nov","Dec"];
       const date=`${curr.getDate()}-${numberToMonth[curr.getMonth()]}-${curr.getFullYear()}`;
       await updateEmailData({status:"1",history:date},userId,params.userEmail,subscriptionId);
-
-      //once verified then start watching inbox
-
-            await inboxQueue.add(
-              'inbox-job',
+      //once verified then start watching inbox // need to check since this should be done post campaign start
+            await inboxQueue.add('inbox-job',
               {
                 email: params.userEmail,
                 userId,
@@ -112,10 +102,8 @@ const verifyEmail=async(params:SendEmailInterface,userId:string,subscriptionId:s
             );
 
     }else{
-
       await updateEmailData({status:"2"},userId,params.userEmail,subscriptionId);
     }
-
     return true;
   }catch(err){
 

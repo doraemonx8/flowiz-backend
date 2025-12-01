@@ -134,9 +134,7 @@ const checkFaqCount=async(userId:string)=>{
 
 
 const checkEmailCount=async(userId:string)=>{
-
     try{
-
         const data : {remainingEmailAccounts : number,usedEmailAccounts : number , subscriptionId:number}[]=await db.sequelize.query(`
             SELECT p.emailAccounts - COUNT(l.id) as remainingEmailAccounts,COUNT(l.id) as usedEmailAccount,s.id as subscriptionId
             FROM subscriptions s

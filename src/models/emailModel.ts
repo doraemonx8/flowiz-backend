@@ -5,27 +5,19 @@ import Chat from "./schema";
 
 const saveEmail = async (userId: string,type: string,email:string): Promise<boolean> => {
   try {
-
     //checking if email is already present
-
     const res=await db.sequelize.query('SELECT id FROM emails WHERE userId=:userId AND email=:email',{
       replacements:{userId,email},
       type:QueryTypes.SELECT
     });
-
     if(res.length > 0){
       return true;
     }
-    const query = `
-      INSERT INTO emails (userId, type, email)
-      VALUES (:userId,:type,:email)
-    `;
-
+    const query = `INSERT INTO emails (userId, type, email) VALUES (:userId,:type,:email)`;
     await db.sequelize.query(query, {
       replacements : {userId,type,email},
       type: QueryTypes.INSERT,
     });
-
     return true;
   } catch (err) {
     console.error("Error in batch insert:", err);
@@ -33,27 +25,52 @@ const saveEmail = async (userId: string,type: string,email:string): Promise<bool
   }
 };
 
+const insertEmail = async (userId: string, type: string, email: string, password: string) => {
+  try {
+    const [existing] = await db.sequelize.query(`SELECT id, status FROM emails WHERE email = :email AND isDeleted = '0' LIMIT 1`,
+      {replacements: { email }, type: QueryTypes.SELECT}
+    );
+
+    if (existing) {
+      const messages: Record<number, string> = {
+        0: "This email is already added and pending verification.",
+        1: "This email is already added.",
+        2: "This email was previously rejected. Please use a valid email."
+      };
+
+      return {
+        status: false,
+        message: messages[(existing as any).status] || "Email already exists."
+      };
+    }
+
+    await db.sequelize.query(`
+      INSERT INTO emails (userId, email, type, password) VALUES (:userId, :email, :type, :password)`,
+      {
+        replacements: { userId, type, email, password },
+        type: QueryTypes.INSERT,
+      }
+    );
+    return { status: true, message: "Email added. Verification pending." };
+  } catch (err) {
+    console.error(err);
+    return { status: false, message: "Could not insert email." };
+  }
+};
 
 const getGoogleHistoryId=async(email:string)=>{
-
   try{
-
     const res=await db.sequelize.query(`SELECT googleTokenData,users.id,users.companyId from users INNER JOIN emails on emails.userId=users.id WHERE emails.email=:email`,
       {
         replacements:{email},
         type:QueryTypes.SELECT
       }
     )
-
     if ('id' in res[0] && 'googleTokenData' in res[0] && 'companyId' in res[0] ){
-
       return {userId:res[0].id,companyId:res[0].companyId,historyId:JSON.parse(res[0].googleTokenData as string).historyId};
     }
-
     return {userId : null,historyId:null};
-
   }catch(err){
-
     console.error("An error occured while getting previous history :",err);
     return {userId : null,historyId:null};
   }
@@ -61,32 +78,25 @@ const getGoogleHistoryId=async(email:string)=>{
 
 
 const getEmailHistory=async(userId:string,email:string)=>{
-
   try{
-
     const res=await db.sequelize.query("SELECT history FROM emails WHERE email=:email AND userId=:userId AND isDeleted='0'",
       {
         replacements:{userId,email},
         type:QueryTypes.SELECT
       }
     );
-
     if('history' in res[0]){
       return res[0].history;
     }
-
-    return null;
+  return null;
   }catch(err){
-
     console.error(err);
     return null;
   }
 }
 
 const updateEmailChat=async(chatId:string,params:Record<string,any>)=>{
-
   try{
-
     await Chat.findByIdAndUpdate(chatId,params);
     return true;
   }catch(err){
@@ -119,9 +129,7 @@ const updateEmailChat=async(chatId:string,params:Record<string,any>)=>{
 
 
 const isEmailChatPresent=async(userId:string,leadId:string,companyId:string,flowId:string)=>{
-
   try{
-
     const chat=await Chat.findOne({
       channel:"email",
       adminId:userId,
@@ -129,20 +137,15 @@ const isEmailChatPresent=async(userId:string,leadId:string,companyId:string,flow
       companyId,
       flowId
     });
-
     return chat?._id;
   }catch(err){
-
     console.error(err);
     return false;
   }
 }
 
 const isEmailChatByMessageId=async(messageId:string,currMessageId:string)=>{
-
   try{
-
-
   const chat = await Chat.aggregate([
   {
     $unwind: "$messages"
@@ -158,8 +161,6 @@ const isEmailChatByMessageId=async(messageId:string,currMessageId:string)=>{
     }
   }
 ]);
-
-
   return chat[0];
   }catch(err){
     console.error(err);
@@ -205,19 +206,10 @@ const isEmailChatByMessageId=async(messageId:string,currMessageId:string)=>{
 
 
 const addMailMessage=async(chatId:string,messageObj:Record<string,any>)=>{
-
   try{
-
     const chat=await Chat.findOneAndUpdate(
-  {
-    channel: "email",
-    _id:chatId
-  },
-  {
-    $push: {
-      messages:messageObj
-    },
-  },
+  {channel: "email", _id:chatId},
+  {$push: {messages:messageObj},},
   {new:true}
 );
 
@@ -234,9 +226,7 @@ return false;
 
 
 const getAllEmailsDB=async(userId:string)=>{
-
   try{
-
     const res=await db.sequelize.query(`SELECT 
     emails.id,
     emails.email,
@@ -270,38 +260,17 @@ WHERE
   }
 }
 
-const insertEmail=async(userId:string,type:string,email:string,password:string)=>{
 
-  try{
-
-    //checking if email exists
-    await db.sequelize.query('INSERT INTO emails (userId,email,type,password) VALUES(:userId,:email,:type,:password)',
-      {
-        replacements:{userId,type,email,password},
-        type:QueryTypes.INSERT
-      }
-    );
-
-
-    return true;
-  }catch(err){
-    console.error(err);
-    return false;
-  }
-}
 
 
 const deleteMailDB=async(email:string,userId:string)=>{
-
   try{
-
     await db.sequelize.query("UPDATE emails SET isDeleted='1' WHERE email=:email AND userId=:userId",
       {
         replacements:{userId,email},
         type:QueryTypes.UPDATE
       }
     )
-
     return true;
   }catch(err){
     console.error(err);
@@ -311,11 +280,8 @@ const deleteMailDB=async(email:string,userId:string)=>{
 
 
 const updateEmailData=async(params:Record<string,string>,userId:string,email:string,subscriptionId:string | null =null )=>{
-
   const t=await db.sequelize.transaction();
-
   try{
-
     const query=Object.keys(params).map((key : string)=> `${key} =:${key}`).join(",");
     await db.sequelize.query(`UPDATE emails SET ${query} WHERE userId=:userId AND emails.email=:email AND emails.isDeleted='0' `,
       {
@@ -325,7 +291,6 @@ const updateEmailData=async(params:Record<string,string>,userId:string,email:str
     )
 
     if(params.status==='1'){ //adding in ledger only when email has been verified
-
         await db.sequelize.query("INSERT INTO ledger (userId,subscriptionId,message,type) VALUES(:userId,:subscriptionId,'Email account added','emailAccount')",
         {
           replacements:{userId,subscriptionId},
@@ -345,9 +310,7 @@ const updateEmailData=async(params:Record<string,string>,userId:string,email:str
 }
 
 const getEmailData=async(userId:string,email:string)=>{
-
   try{
-
     const res=await db.sequelize.query("SELECT password,type FROM emails WHERE userId=:userId AND email=:email AND isDeleted='0'",
       {
         replacements:{userId,email},
@@ -367,16 +330,13 @@ const getEmailData=async(userId:string,email:string)=>{
 }
 
 const getAllVerifiedEmails=async(userId:string,emailIds:string="")=>{
-
   try{
-
     const res=await db.sequelize.query(`SELECT id,email,type,password FROM emails WHERE userId=:userId AND status='1' AND isDeleted='0' ${emailIds ? "AND id IN (:emailIds)" : ""} ORDER BY createdOn DESC`,
       {
         replacements:{userId,...(emailIds ? { emailIds: emailIds.split(",") } : {})},
         type:QueryTypes.SELECT
       }
     );
-
     return res;
   }catch(err){
     console.error(err);
@@ -386,9 +346,7 @@ const getAllVerifiedEmails=async(userId:string,emailIds:string="")=>{
 
 
 const getEmailSignature=async(userId:string,campaignId:string)=>{
-
   try{
-
     const res : any=await db.sequelize.query("SELECT subFlows.configData FROM subFlows INNER JOIN campaigns on campaigns.flowId=subFlows.flowId WHERE subFlows.userId=:userId AND subFlows.type='1' AND subFlows.isDeleted='0' ORDER BY subFlows.createdOn DESC LIMIT 1",
       {
         replacements:{userId,campaignId}
@@ -397,13 +355,10 @@ const getEmailSignature=async(userId:string,campaignId:string)=>{
 
 
     if('configData' in res[0][0]){
-
       return JSON.parse(res[0][0]['configData'] as string).signature;
     }
-
     return null;
   }catch(err){
-
     console.error(err);
     return null;
   }

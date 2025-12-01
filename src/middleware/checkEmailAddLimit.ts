@@ -3,18 +3,12 @@ import {Request,Response,NextFunction} from "express";
 
 
 const checkEmailAddLimit=async(req:Request,res:Response,next:NextFunction):Promise<any>=>{
-
     try{
-
         const {userId}=req.body;
-
         const isAllowed=await checkEmailCount(userId);
-
         if(!isAllowed){
-
-            return res.status(400).send({status:false,message:"Email Limit reached."});
+            return res.status(400).send({status:false,exhausted:'subscription', type:'addOn', message:"Email Account Limit reached."});
         }
-
         req.body.subscriptionId=isAllowed.subscriptionId;
         return next();
     }catch(err){

@@ -558,7 +558,6 @@ const generateWhatsAppChats=async(json:string, templateId:string):Promise<string
         { role: 'user', content: `templateId: ${templateId},\n Product JSON :${json}`}
       ],
     });
-
   const data=response.choices[0]?.message?.content;
   return data ? data : "[]";
   }catch(err){

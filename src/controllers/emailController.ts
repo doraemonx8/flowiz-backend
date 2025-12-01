@@ -4,7 +4,6 @@ import {verifyEmail, deleteInboxJobs } from '../utils/emailUtil';
 import { getCampaignProgress, updateCampaignStatusDB } from '../models/campaignModel';
 import { decryptId, encryptId } from '../utils/encryptDecrypt';
 
-
 interface EmailData{
     id:string;
     campaignId:string;
@@ -15,44 +14,30 @@ interface EmailData{
     type:string;
 }
 const getAllEmails=async(req:Request,res:Response):Promise<any>=>{
-
     try{
-
         const {userId}=req.body;
-
-        const emails : any  =await getAllEmailsDB(userId);
-
+        const emails : any = await getAllEmailsDB(userId);
 
         //checking the status of campaigns 
         for (const emailData of emails ){
-
             const campaignId=emailData?.campaignId;
             const campaignProgress=await getCampaignProgress(campaignId);
             // const decryptedPassword=decryptId(emailData.password);
-
-
             if(parseInt(campaignProgress as string) == 100){
-
                 //update in DB
                 await updateCampaignStatusDB(campaignId,"completed");
-
                 emailData['isUsedInCampaign']=true;
                 emailData['campaignStatus']='completed';
-
             }else if(parseInt(campaignProgress as string) == 0){
-
                 emailData['isUsedInCampaign']=false;
                 emailData['campaignStatus']='NA';
             }else{
                 emailData['isUsedInCampaign']=true;
                 emailData['campaignStatus']='pending';
             }
-
             delete emailData.campaignId;
             // emailData.password=decryptedPassword;
         }
-        
-      
         return res.status(200).send({status:true,data:emails});
     }catch(err){
 
@@ -61,26 +46,20 @@ const getAllEmails=async(req:Request,res:Response):Promise<any>=>{
     }
 }
 
-
 const typeToHostMap : any={
     "gmail":"smtp.gmail.com",
     "outlook":"smtp.office365.com",
     "zoho":"smtp.zoho.in"
 }
 
-
 const saveEmail=async(req:Request,res:Response):Promise<any>=>{
-
     try{
-
         const {userId,email,type,password,subscriptionId}=req.body;
-
-        verifyEmail({host:typeToHostMap[type],userEmail:email,userPassword:password,from:email,to:"rahul.solanki@cybernauts.in",subject:"Email Activation",body:"Hey, Email sent before adding"},userId,subscriptionId);
-
-
-        await insertEmail(userId,type,email,password);
-        
-        return res.status(200).send({status:true,message:"Email saved!!"});
+        const { status, message } = await insertEmail(userId, type, email, password);
+        if(status){
+            verifyEmail({host:typeToHostMap[type],userEmail:email,userPassword:password,from:email,to:"rahul.solanki@cybernauts.in",subject:"Email Activation",body:"Hey, Email sent before adding"},userId,subscriptionId);
+        }
+        return res.status(status ? 200 : 400).send({ status, message });
     }catch(err){
         console.error("An error occured while saving email");
         return res.status(500).send({status:false,message:"Could not save email"});

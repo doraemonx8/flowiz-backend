@@ -213,13 +213,11 @@ const updateFlowConfig = async (botName: string, botDescription: string, userId:
 };
 
 
-
+//changed from configData to json
 const getFlowConfigDB=async(slug:string,userId:string)=>{
-
     try{
-
         const result = await db.sequelize.query(
-            `SELECT flows.configData FROM flows WHERE flows.userId=:userId AND flows.slug=:slug AND flows.isDeleted='0'`,
+            `SELECT flows.json FROM flows WHERE flows.userId=:userId AND flows.slug=:slug AND flows.isDeleted='0'`,
             {
                 replacements: { userId,slug },
                 type: QueryTypes.SELECT
@@ -351,8 +349,7 @@ const getFlowDataFromDB=async(userId:string,slug:string)=>{
 
     try{
         const res=await db.sequelize.query(
-            `SELECT 
-            flows.json,flows.configData,
+            `SELECT flows.json,
             COUNT(emails.id) as emailCount,
             flows.prompt,users.metaTokenData,
             campaigns.status,campaigns.audienceId,

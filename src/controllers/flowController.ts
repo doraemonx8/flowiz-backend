@@ -207,10 +207,12 @@ const getSubFlow = async (req: Request, res: Response): Promise<any> => {
             case "whatsapp": 
                 // set template as first node
                 const subFlowWhatsapp = await getSubflowsConfig(userId, slug as string, "4");
-                const templateId = subFlowWhatsapp[0]?.configData.templateId;
+                const templateId = JSON.parse(subFlowWhatsapp[0]?.configData).templateId;
+                console.log("Using WhatsApp Template ID: ", templateId);
                 if (!templateId) {
                     return res.status(400).json({status: false, message: "WhatsApp template not configured. Please configure and try again."});
                 }
+                
                 generatedData = JSON.parse(jsonrepair(await generateWhatsAppChats(passedData, templateId)));
                 break;
         }
@@ -271,7 +273,6 @@ const setFlowConfig = async (req: Request, res: Response): Promise<any> => {
 
 const getFlowConfig=async(req : Request, res: Response) : Promise<any>=>{
     try{
-
         const {userId}=req.body;
         const slug =req.query.slug as string;
         const data=await getFlowConfigDB(slug,userId);
@@ -290,6 +291,8 @@ const getFlowData=async(req:Request,res:Response):Promise<any>=>{
         const {userId}=req.body;
         const {slug}=req.query;
         const data : any=await getFlowDataFromDB(userId,slug as string);
+
+        console.log("Flow data fetched : ",data);
         
         if(!data){
             return res.status(404).send({status:false,message:"Invalid slug"});
