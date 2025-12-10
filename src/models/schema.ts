@@ -28,7 +28,7 @@ interface IChat extends Document {
 
 
 const ChatSchema = new Schema<IChat>({
-  _id: { type: String },
+  _id: { type: String } as any,
   companyId: { type: String, required: true },
   userId: { type: String, required: true },
   adminId:{type:String},
@@ -67,7 +67,7 @@ interface IJob extends Document {
 
 
 const JobSchema = new Schema<IJob>({
-  _id: { type: String },
+  _id: { type: String } as any,
   companyId: { type: String, required: true },
   userId: { type: String, required: true },
   leadId:{type:String,required:true},

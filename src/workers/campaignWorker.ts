@@ -15,7 +15,7 @@ const temp_whatsapp_worker=whatsappWorker;
 // Create Redis connections
 const connection = new IORedis({ 
   host:'127.0.0.1',
-  port:6381,  
+  port:6379,  
   maxRetriesPerRequest: null 
 });
 
