@@ -11,13 +11,11 @@ const validateEmailAgent=async(req:Request,res:Response,next:NextFunction):Promi
 
 
         if(!isEmailAgent){
-
             return next();
         }
 
 
         const emails : any[]=await getAllVerifiedEmails(userId,emailId || "");
-
         if(!emails.length){
             res.status(404).send({status:false,message:"Need atleast one verified email for Email Agent"});
             return;

@@ -5,7 +5,7 @@ import { simpleParser } from 'mailparser';
 import {getEmailHistory,isEmailChatByMessageId,addMailMessage, updateEmailData,updateEmailChat} from "../models/emailModel";
 import { sendMessageToAgent } from "../utils/eventManager";
 import { getJobIdsToRemove } from "../models/jobModel";
-import { deleteEmailJobs } from "../utils/emailUtil";
+import { deleteEmailJobs, getIMAPHost } from "../utils/emailUtil";
 import { getCurrentDate } from "../utils/inboxUtil";
 
 
@@ -14,13 +14,6 @@ const connection = new IORedis({
     port:6379,  
     maxRetriesPerRequest: null 
 });
-
-const typeToHostMap : any={
-    "smtp.gmail.com":"imap.gmail.com",
-    "smtp.office365.com":"imap.office365.com",
-    "smtp.zoho.in":"imap.zoho.in"
-}
-
 
 
 // Key for tracking currently processing emails in Redis
@@ -41,26 +34,24 @@ const inboxWorker = new Worker('inbox-queue', async (job: any) => {
     }
 
     await connection.sadd(PROCESSING_EMAILS_REDIS_KEY, email);
-
     try {
-
         let historyDate: string | null = null;
         const history = await getEmailHistory(userId, email);
-
         if(!history){
-
             console.warn("No history found for email : ",email);
             return { skipped: true, reason: 'Already processing' };
         }
 
+        const imapHost = getIMAPHost(host as string);
+
         const imap = new Imap({
             user: email,
-            password: password, 
-            host: typeToHostMap[host],
+            password: password,
+            host: imapHost,
             port: 993,
             tls: true,
             tlsOptions: {
-                rejectUnauthorized: false, 
+                rejectUnauthorized: false,
             },
         });
 
@@ -73,21 +64,17 @@ const inboxWorker = new Worker('inbox-queue', async (job: any) => {
                     }
 
                     const searchCriteria = ['UNSEEN',['SINCE', history]];
-
                     imap.search(searchCriteria, async(err, results) => {
                         if (err) {
                             imap.end();
                             return reject(new Error(`IMAP search error: ${err.message}`));
                         }
-
                         if (!results || results.length === 0) {
                             console.log(`[Job ${jobId}] No new unseen messages for ${email} since ${historyDate}.`);
                             imap.end();
                             return resolve("No new unseen messages");
                         }
-
                         console.log(`[Job ${jobId}] Found ${results.length} new messages for ${email}.`);
-
                         const fetch = imap.fetch(results, {
                             bodies: '', 
                             struct: true,
@@ -95,7 +82,6 @@ const inboxWorker = new Worker('inbox-queue', async (job: any) => {
 
                         let messagesProcessed = 0;
                         let messagesFailed = 0;
-
                         fetch.on('message', (msg, seqno) => {
                             let rawData = '';
                             msg.on('body', (stream) => {
@@ -103,11 +89,9 @@ const inboxWorker = new Worker('inbox-queue', async (job: any) => {
                                     rawData += chunk.toString('utf8');
                                 });
                             });
-
                             msg.once('end', async () => {
                                 try {
                                     const parsed = await simpleParser(rawData);
-
                                     const prevMessageId = parsed.inReplyTo || null;
                                     const currMessageId = parsed.messageId || null;
 
@@ -115,13 +99,10 @@ const inboxWorker = new Worker('inbox-queue', async (job: any) => {
                                         console.warn(`[Job ${jobId}] Message ${seqno} for ${email} has no Message-ID. Skipping chat check.`);
                                         return;
                                     }
-
                                     // Checking if messageId belongs to a chat
                                     if (prevMessageId) {
                                         const chat = await isEmailChatByMessageId(prevMessageId,currMessageId);
-
                                         if (chat) {
-
                                             // Adding message in chat
                                             await addMailMessage(chat._id, {
                                                 isBot: false,
@@ -131,10 +112,8 @@ const inboxWorker = new Worker('inbox-queue', async (job: any) => {
                                                 subject: parsed.subject,
                                                 createdOn: new Date().getTime()
                                             });
-
                                             //removing any email jobs
                                             const pendingEmailJobs =await getJobIdsToRemove(chat.companyId,chat.adminId,chat.flowId,chat.leadId);
-
                                             //removing these jobs
                                             await deleteEmailJobs(pendingEmailJobs as Array<string>);
                                             // Sending message to agent
@@ -152,7 +131,6 @@ const inboxWorker = new Worker('inbox-queue', async (job: any) => {
                                                     }
                                                 }
                                             });
-
                                             //updating chat for agent handover
                                             updateEmailChat(chat._id,{isAgentHandover:true});
                                             messagesProcessed++;
@@ -182,19 +160,15 @@ const inboxWorker = new Worker('inbox-queue', async (job: any) => {
                     });
                 });
             });
-
             imap.once('error', (err: any) => {
                 console.error(`[Job ${jobId}] ❌ IMAP Connection error for ${email}:`, err);
                 reject(new Error(`IMAP connection error: ${err.message}`));
             });
-
             imap.once('end', () => {
                 console.log(`[Job ${jobId}] 🔚 IMAP Connection closed for ${email}.`);
             });
-
             imap.connect();
         });
-
 
         //updating history date
         await updateEmailData({ history: getCurrentDate() }, userId, email);

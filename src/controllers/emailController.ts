@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import {getAllEmailsDB,deleteMailDB,insertEmail} from "../models/emailModel";
-import {verifyEmail, deleteInboxJobs } from '../utils/emailUtil';
+import {verifyEmail, deleteInboxJobs, getSMTPHost } from '../utils/emailUtil';
 import { getCampaignProgress, updateCampaignStatusDB } from '../models/campaignModel';
 import { decryptId, encryptId } from '../utils/encryptDecrypt';
 
@@ -46,20 +46,21 @@ const getAllEmails=async(req:Request,res:Response):Promise<any>=>{
     }
 }
 
-const typeToHostMap : any={
-    "gmail":"smtp.gmail.com",
-    "outlook":"smtp.office365.com",
-    "zoho":"smtp.zoho.in"
-}
 
 const saveEmail=async(req:Request,res:Response):Promise<any>=>{
     try{
-        const {userId,email,type,password,subscriptionId}=req.body;
-        const { status, message } = await insertEmail(userId, type, email, password);
-        if(status){
-            verifyEmail({host:typeToHostMap[type],userEmail:email,userPassword:password,from:email,to:"rahul.solanki@cybernauts.in",subject:"Email Activation",body:"Hey, Email sent before adding"},userId,subscriptionId);
+        const {userId,email,type,password,subscriptionId,host}=req.body;
+        // host is required only if type is 'custom'
+        if(type === 'custom' && !host){
+            return res.status(400).send({status:false,message:"Host is required for custom email type"});
         }
+        
+        const { status, message } = await insertEmail(userId, type, email, password, type === 'custom' ? host : undefined);
+        if(status){
+            const smtpHost = getSMTPHost(type, host);
+            verifyEmail({host:smtpHost,userEmail:email,userPassword:password,from:email,to:"rahul.solanki@cybernauts.in",subject:"Email Activation",body:"Hey, Email sent before adding"},userId,subscriptionId);
         return res.status(status ? 200 : 400).send({ status, message });
+        }
     }catch(err){
         console.error("An error occured while saving email");
         return res.status(500).send({status:false,message:"Could not save email"});

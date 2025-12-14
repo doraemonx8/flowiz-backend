@@ -25,7 +25,7 @@ const saveEmail = async (userId: string,type: string,email:string): Promise<bool
   }
 };
 
-const insertEmail = async (userId: string, type: string, email: string, password: string) => {
+const insertEmail = async (userId: string, type: string, email: string, password: string, host?: string) => {
   try {
     const [existing] = await db.sequelize.query(`SELECT id, status FROM emails WHERE email = :email AND isDeleted = '0' LIMIT 1`,
       {replacements: { email }, type: QueryTypes.SELECT}
@@ -44,10 +44,20 @@ const insertEmail = async (userId: string, type: string, email: string, password
       };
     }
 
+    // Build replacements object conditionally
+    const replacements: Record<string, any> = { userId, type, email, password };
+    if (host) {
+      replacements.host = host;
+    }
+
+    // Build query conditionally based on whether host is provided
+    const hostColumn = host ? ', host' : '';
+    const hostPlaceholder = host ? ', :host' : '';
+    
     await db.sequelize.query(`
-      INSERT INTO emails (userId, email, type, password) VALUES (:userId, :email, :type, :password)`,
+      INSERT INTO emails (userId, email, type, password${hostColumn}) VALUES (:userId, :email, :type, :password${hostPlaceholder})`,
       {
-        replacements: { userId, type, email, password },
+        replacements,
         type: QueryTypes.INSERT,
       }
     );
@@ -311,27 +321,25 @@ const updateEmailData=async(params:Record<string,string>,userId:string,email:str
 
 const getEmailData=async(userId:string,email:string)=>{
   try{
-    const res=await db.sequelize.query("SELECT password,type FROM emails WHERE userId=:userId AND email=:email AND isDeleted='0'",
+    const res=await db.sequelize.query("SELECT password,type,host FROM emails WHERE userId=:userId AND email=:email AND isDeleted='0'",
       {
         replacements:{userId,email},
         type:QueryTypes.SELECT
       }
     );
-
-    if(res.length && 'password' in res[0] && 'type' in res[0]){
-      return {password:res[0].password, type:res[0].type};
+    if(res.length && 'password' in res[0] && 'type' in res[0] && 'host' in res[0]){
+      return {password:res[0].password, type:res[0].type, host:res[0].host};
     }
-    
-    return null;
+    return {};
   }catch(err){
     console.error(err);
-    return null;
+    return {};
   }
 }
 
 const getAllVerifiedEmails=async(userId:string,emailIds:string="")=>{
   try{
-    const res=await db.sequelize.query(`SELECT id,email,type,password FROM emails WHERE userId=:userId AND status='1' AND isDeleted='0' ${emailIds ? "AND id IN (:emailIds)" : ""} ORDER BY createdOn DESC`,
+    const res=await db.sequelize.query(`SELECT id,email,type,password,host FROM emails WHERE userId=:userId AND status='1' AND isDeleted='0' ${emailIds ? "AND id IN (:emailIds)" : ""} ORDER BY createdOn DESC`,
       {
         replacements:{userId,...(emailIds ? { emailIds: emailIds.split(",") } : {})},
         type:QueryTypes.SELECT

@@ -10,7 +10,6 @@ import {calculateTimezoneDelay} from "../utils/timezoneUtil";
 const scheduleCampaign=async(req:Request,res:Response):Promise<any>=>{
 
     try{
-
         const {isEmailAgent,isCallAgent,isWhatsappAgent,isWebAgent,subFlows,campaignData,userId,template,campaignId,agents,scheduledAt,emailData,delay}=req.body;
 
         if(template && template!=0){

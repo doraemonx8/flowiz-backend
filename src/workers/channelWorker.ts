@@ -6,7 +6,7 @@ import {createChat} from "../models/chats";
 import {sendTemplateMessageFromMeta} from "../utils/meta";
 // import { sendGmailEmail } from "../utils/googleUtil";
 import { sendMessageToAgent } from "../utils/eventManager";
-import { sendEmail } from "../utils/emailUtil";
+import { sendEmail, getSMTPHost } from "../utils/emailUtil";
 import { isEmailChatPresent, addMailMessage } from "../models/emailModel";
 import { updateJobStatus } from "../models/jobModel";
 
@@ -22,12 +22,6 @@ const connection = new IORedis({
     port:6379,  
     maxRetriesPerRequest: null 
 });
-
-const typeToHostMap : any={
-    "gmail":"smtp.gmail.com",
-    "outlook":"smtp.office365.com",
-    "zoho":"smtp.zoho.in"
-}
 
 //WORKERS
 const emailWorker=new Worker('email-queue',async(job :any)=>{
@@ -51,7 +45,8 @@ const emailWorker=new Worker('email-queue',async(job :any)=>{
     console.log("sending email to : ",job.data.email);    
     const signature="\n" + userEmailData.signature;
     // const {messageId,threadId}=await sendGmailEmail(userId,{to:email,from:userEmail.userEmail,subject,body,isHtml:true,signature})
-    const {isSent,messageId}=await sendEmail({userEmail:userEmailData.email,userPassword:userEmailData.password,from:userEmailData.email,host:typeToHostMap[userEmailData.type],subject,body:body+signature,to:email});
+    const smtpHost = getSMTPHost(userEmailData.type, userEmailData.host);
+    const {isSent,messageId}=await sendEmail({userEmail:userEmailData.email,userPassword:userEmailData.password,from:userEmailData.email,host:smtpHost,subject,body:body+signature,to:email});
 
     if(!isSent){
         await updateJobStatus(job.id,"failed",messageId);

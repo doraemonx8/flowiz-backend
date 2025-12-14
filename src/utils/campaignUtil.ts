@@ -32,15 +32,11 @@ const scheduleCampaignUtil = async (data: CampaignData): Promise<StatusResponse>
     // Calculate delay
     // const delay = scheduledAtUTC.getTime() - nowUTC.getTime();
 
-
     if (data.delay <= 0) {
       console.log("scheduling campaign now");
-
       await campaignQueue.add("campaign-job", data);
-
       return { status: true, message: "Campaign scheduled" };
     }
-
 
     //updating campaign status
     await updateCampaignStatusDB(data.campaignId,'pending');

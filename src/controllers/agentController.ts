@@ -4,7 +4,7 @@ import {addMessageForChat} from "../utils/botMongo";
 import { sendMessageToWebUser } from '../utils/eventManager';
 // import {sendGmailReply} from "../utils/googleUtil";
 import {getLeadMail} from "../models/leadModel";
-import {sendEmailReply} from "../utils/emailUtil";
+import {sendEmailReply, getSMTPHost} from "../utils/emailUtil";
 import {getEmailData} from "../models/emailModel";
 import { sendMessageFromMeta } from '../utils/meta';
 
@@ -16,28 +16,21 @@ const typeToHostMap : any={
 }
 
 const sendMessage=async(req:Request,res:Response) : Promise<any>=>{
-
-
     try{
-
         const {userId,companyId,message,chatId}=req.body;
-
         //middleware to verify if the user/agent belongs to same the company as the chat
         if(! await checkCompanyForAgent(chatId,companyId)){
-
             return res.status(400).send({status:false,message:"Agent not authorized for the given chat"});
         }
 
         //getting type of channel
         const chat=await getChatData(chatId);
-
         if(!chat){
             return res.status(400).send({status:false,message:"Unable to find chat"});
         }
 
         //EMAIL
         if(chat.channel==="email"){
-            
             const lastMessage=chat.messages.reverse()[0];
             let references="";
 
@@ -52,15 +45,15 @@ const sendMessage=async(req:Request,res:Response) : Promise<any>=>{
             const leadMail=await getLeadMail(chat.userId);
             const userMail=chat.adminMail;
 
-            const {password,type}=await getEmailData(userId,userMail as string) || {};
+            const {password, type, host}=await getEmailData(userId,userMail as string);
 
             if(!leadMail){
                 return res.status(400).send({status:false,message:"Lead not found"});
             }
             //sending mail
             // const replyId=await sendGmailReply(userId,{from:userMail.userEmail,to:leadMail,subject,lastMessageId,body:message,threadId,references});
-
-            const replyId=await sendEmailReply({host:typeToHostMap[type as string],userEmail:userMail,userPassword:password,from:userMail,to:leadMail,subject,body:message,lastMessageId,references})
+            const smtpHost = getSMTPHost(type as string, host as string);
+            const replyId=await sendEmailReply({host:smtpHost,userEmail:userMail,userPassword:password,from:userMail,to:leadMail,subject,body:message,lastMessageId,references})
             //add message in chat
             await addMessage(chatId,{isBot:false,isAgent:true,subject,message,createdOn:new Date().getTime(),messageId:replyId});
             return res.status(200).send({status:true,message:"Email sent"});

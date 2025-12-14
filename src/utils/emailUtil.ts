@@ -16,6 +16,62 @@ interface SendEmailInterface{
   body:string;
 }
 
+// Standard SMTP host mapping for common email providers
+const SMTP_HOST_MAP: Record<string, string> = {
+  "gmail": "smtp.gmail.com",
+  "outlook": "smtp.office365.com",
+  "zoho": "smtp.zoho.in"
+};
+
+/**
+ * Get SMTP host for email type
+ * @param type - Email provider type ('gmail', 'outlook', 'zoho', or 'custom')
+ * @param customHost - Host address when type is 'custom' (required if type === 'custom')
+ * @returns SMTP host address
+ */
+const getSMTPHost = (type: string, customHost?: string): string => {
+  if (type === 'custom') {
+    if (!customHost) {
+      throw new Error("Custom host is required when type is 'custom'");
+    }
+    return customHost;
+  }
+  return SMTP_HOST_MAP[type] || SMTP_HOST_MAP['gmail']; // default to gmail if unknown
+};
+
+// IMAP host map for common providers
+const IMAP_HOST_MAP: Record<string, string> = {
+  "gmail": "imap.gmail.com",
+  "outlook": "imap.office365.com",
+  "zoho": "imap.zoho.in"
+};
+
+/**
+ * Resolve IMAP host from SMTP host string.
+ * Accepts either a provider type (e.g. 'gmail') or an SMTP host (e.g. 'smtp.gmail.com') and returns the corresponding IMAP host.
+ */
+const getIMAPHost = (smtpOrType: string | undefined): string => {
+  if (!smtpOrType) {
+    throw new Error('Host or type is required to resolve IMAP host');
+  }
+
+  // If caller provided a provider type (e.g. 'gmail')
+  if (!smtpOrType.includes('.')) {
+    if (smtpOrType === 'custom') {
+      throw new Error("Custom type requires an explicit host; cannot derive IMAP host");
+    }
+    return IMAP_HOST_MAP[smtpOrType] || IMAP_HOST_MAP['gmail'];
+  }
+
+  // smtpOrType looks like a host (e.g. smtp.gmail.com) — try to map back to provider
+  for (const [type, smtp] of Object.entries(SMTP_HOST_MAP)) {
+    if (smtp === smtpOrType) return IMAP_HOST_MAP[type];
+  }
+
+  // Fallback: attempt a naive replacement of smtp. -> imap.
+  return smtpOrType.replace(/^smtp\./i, 'imap.');
+};
+
 
 const sendEmail=async(params:SendEmailInterface)=> {
    try{
@@ -41,9 +97,7 @@ const sendEmail=async(params:SendEmailInterface)=> {
 
 
 const sendEmailReply=async(params:Record<string,any>)=>{
-
   try{
-
     const transporter = nodemailer.createTransport({
         host:params.host, 
         port: 587,
@@ -84,22 +138,22 @@ const verifyEmail=async(params:SendEmailInterface,userId:string,subscriptionId:s
       const date=`${curr.getDate()}-${numberToMonth[curr.getMonth()]}-${curr.getFullYear()}`;
       await updateEmailData({status:"1",history:date},userId,params.userEmail,subscriptionId);
       //once verified then start watching inbox // need to check since this should be done post campaign start
-            await inboxQueue.add('inbox-job',
-              {
-                email: params.userEmail,
-                userId,
-                password: params.userPassword,
-                host: params.host
-              },
-              {
-                removeOnComplete: true,
-                removeOnFail: 5,
-                repeat: {
-                  every: 60 * 60 * 1000,
-                  key: `inbox-read-scheduler:${params.userEmail}` 
-                }
-              }
-            );
+      await inboxQueue.add('inbox-job',
+        {
+          email: params.userEmail,
+          userId,
+          password: params.userPassword,
+          host: params.host
+        },
+        {
+          removeOnComplete: true,
+          removeOnFail: 5,
+          repeat: {
+            every: 60 * 60 * 1000,
+            key: `inbox-read-scheduler:${params.userEmail}` 
+          }
+        }
+      );
 
     }else{
       await updateEmailData({status:"2"},userId,params.userEmail,subscriptionId);
@@ -114,13 +168,9 @@ const verifyEmail=async(params:SendEmailInterface,userId:string,subscriptionId:s
 }
 
 const deleteInboxJobs=async(email:string)=>{
-
   try{
-
     const key=`inbox-read-scheduler:${email}`;
-
     const isRemoved=await inboxQueue.removeJobScheduler(key);
-
     if (isRemoved) {
             console.log(`Successfully removed repeatable job schedule for email: ${email} (Key: ${key})`);
             return true;
@@ -136,9 +186,7 @@ const deleteInboxJobs=async(email:string)=>{
 
 
 const deleteEmailJobs=async(jobIds:Array<string>)=>{
-
   try{
-
       for (const jobId of jobIds) {
         // Get the job instance from BullMQ
         const bullMqJob = await emailQueue.getJob(jobId);
@@ -178,11 +226,8 @@ const addUtmSource=(data:any)=> {
 
 
 const verifyEmailAddress=async(email:string) : Promise<boolean>=>{
-
   try{
-
     const res=await validate(email);
-
     return res.valid;
   }catch(err){
     return false;
@@ -191,4 +236,4 @@ const verifyEmailAddress=async(email:string) : Promise<boolean>=>{
 }
 
 
-export {sendEmail,verifyEmail,deleteInboxJobs,sendEmailReply,deleteEmailJobs,addUtmSource,verifyEmailAddress};
+export {sendEmail,verifyEmail,deleteInboxJobs,sendEmailReply,deleteEmailJobs,addUtmSource,verifyEmailAddress,getSMTPHost,SMTP_HOST_MAP,getIMAPHost,IMAP_HOST_MAP};
