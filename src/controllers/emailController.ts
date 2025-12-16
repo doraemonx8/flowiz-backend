@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
-import {getAllEmailsDB,deleteMailDB,insertEmail} from "../models/emailModel";
-import {verifyEmail, deleteInboxJobs, getSMTPHost } from '../utils/emailUtil';
+import { getAllEmailsDB, deleteMailDB, insertEmail } from "../models/emailModel";
+import { verifyEmail, deleteInboxJobs, getSMTPHost, enqueueInboxTestJob } from '../utils/emailUtil';
 import { getCampaignProgress, updateCampaignStatusDB } from '../models/campaignModel';
 import { decryptId, encryptId } from '../utils/encryptDecrypt';
 
@@ -13,7 +13,7 @@ interface EmailData{
     status:string;
     type:string;
 }
-const getAllEmails=async(req:Request,res:Response):Promise<any>=>{
+const getAllEmails = async (req: Request, res: Response): Promise<any> => {
     try{
         const {userId}=req.body;
         const emails : any = await getAllEmailsDB(userId);
@@ -47,7 +47,7 @@ const getAllEmails=async(req:Request,res:Response):Promise<any>=>{
 }
 
 
-const saveEmail=async(req:Request,res:Response):Promise<any>=>{
+const saveEmail = async (req: Request, res: Response): Promise<any> => {
     try{
         const {userId,email,type,password,subscriptionId,host}=req.body;
         // host is required only if type is 'custom'
@@ -68,18 +68,12 @@ const saveEmail=async(req:Request,res:Response):Promise<any>=>{
 }
 
 
-const deleteEmail=async(req:Request,res:Response):Promise<any>=>{
-
+const deleteEmail = async (req: Request, res: Response): Promise<any> => {
     try{
-
         const {userId}=req.body;
-
         const{email}=req.query;
-
         const isDeleted=await deleteMailDB(email as string,userId);
-
         if(!isDeleted){
-
             return res.status(400).send({status:false,message:"Not authorized to delete this email"});
         }
 
@@ -93,16 +87,11 @@ const deleteEmail=async(req:Request,res:Response):Promise<any>=>{
 }
 
 
-const encryptPassword=async(req:Request,res:Response):Promise<any>=>{
-
+const encryptPassword = async (req: Request, res: Response): Promise<any> => {
     try{
-
         const {password}=req.body;
-
         const encryptedPassword=encryptId(password);
-
         console.log("encrypted =>",encryptedPassword);
-
         return res.status(200).send({status:true,password:encryptedPassword});
     }catch(err){
         console.error("An error occured while encrypting password : ",err);
@@ -111,4 +100,24 @@ const encryptPassword=async(req:Request,res:Response):Promise<any>=>{
     }
 }
 
-export {getAllEmails,saveEmail,deleteEmail,encryptPassword};
+const testInboxQueue = async (req: Request, res: Response): Promise<any> => {
+    try {
+        const { email, password, type, host, userId } = req.body as {email?: string; password?: string; type?: string; host?: string; userId?: string | number;};
+        if (!userId) {
+            return res.status(400).send({ status: false, message: "userId not found on request (JWT required)" });
+        }
+        if (!email || !password) {
+            return res.status(400).send({ status: false, message: "email and password are required" });
+        }
+        if (!type && !host) {
+            return res.status(400).send({ status: false, message: "Either type or host must be provided" });
+        }
+        const jobInfo = await enqueueInboxTestJob({ email, password, type, host, userId });
+        return res.status(200).send({status: true, message: "Inbox job enqueued for IMAP test", data: jobInfo});
+    } catch (err: any) {
+        console.error("Error while enqueueing inbox test job: ", err);
+        return res.status(500).send({status: false,message: err?.message || "Unable to enqueue inbox test job"});
+    }
+};
+
+export {getAllEmails,saveEmail,deleteEmail,encryptPassword,testInboxQueue};

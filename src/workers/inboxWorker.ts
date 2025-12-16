@@ -20,7 +20,6 @@ const connection = new IORedis({
 const PROCESSING_EMAILS_REDIS_KEY = 'inbox:currently_processing_emails';
 
 
-
 const inboxWorker = new Worker('inbox-queue', async (job: any) => {
     const { email, password, host, userId } = job.data;
     const jobId = job.id;
@@ -43,7 +42,6 @@ const inboxWorker = new Worker('inbox-queue', async (job: any) => {
         }
 
         const imapHost = getIMAPHost(host as string);
-
         const imap = new Imap({
             user: email,
             password: password,

@@ -20,7 +20,8 @@ interface SendEmailInterface{
 const SMTP_HOST_MAP: Record<string, string> = {
   "gmail": "smtp.gmail.com",
   "outlook": "smtp.office365.com",
-  "zoho": "smtp.zoho.in"
+  "zoho": "smtp.zoho.in",
+  // "zoho_pro": "smtppro.zoho.in"
 };
 
 /**
@@ -44,6 +45,7 @@ const IMAP_HOST_MAP: Record<string, string> = {
   "gmail": "imap.gmail.com",
   "outlook": "imap.office365.com",
   "zoho": "imap.zoho.in"
+  // "zoho_pro": "imappro.zoho.in"
 };
 
 /**
@@ -54,7 +56,6 @@ const getIMAPHost = (smtpOrType: string | undefined): string => {
   if (!smtpOrType) {
     throw new Error('Host or type is required to resolve IMAP host');
   }
-
   // If caller provided a provider type (e.g. 'gmail')
   if (!smtpOrType.includes('.')) {
     if (smtpOrType === 'custom') {
@@ -62,12 +63,10 @@ const getIMAPHost = (smtpOrType: string | undefined): string => {
     }
     return IMAP_HOST_MAP[smtpOrType] || IMAP_HOST_MAP['gmail'];
   }
-
   // smtpOrType looks like a host (e.g. smtp.gmail.com) — try to map back to provider
   for (const [type, smtp] of Object.entries(SMTP_HOST_MAP)) {
     if (smtp === smtpOrType) return IMAP_HOST_MAP[type];
   }
-
   // Fallback: attempt a naive replacement of smtp. -> imap.
   return smtpOrType.replace(/^smtp\./i, 'imap.');
 };
@@ -150,7 +149,7 @@ const verifyEmail=async(params:SendEmailInterface,userId:string,subscriptionId:s
           removeOnFail: 5,
           repeat: {
             every: 60 * 60 * 1000,
-            key: `inbox-read-scheduler:${params.userEmail}` 
+            key: `inbox-read-scheduler_${params.userEmail}` 
           }
         }
       );
@@ -167,9 +166,27 @@ const verifyEmail=async(params:SendEmailInterface,userId:string,subscriptionId:s
 
 }
 
+/**
+ * Enqueue a one-off inbox job to test IMAP flow via BullMQ queue + worker.
+ * This mimics the payload shape used in verifyEmail/inboxWorker but without repeat options.
+ */
+const enqueueInboxTestJob = async (params: {email: string; password: string; type?: string; host?: string; userId: string | number;}) => {
+  const { email, password, type, host, userId } = params;
+  let hostForWorker: string;
+  if (type && type !== 'custom') {
+    hostForWorker = type;
+  } else if (host) {
+    hostForWorker = host;
+  } else {
+    throw new Error("Either type or host must be provided");
+  }
+  const job = await inboxQueue.add('inbox-job', {email,userId,password,host: hostForWorker});
+  return { jobId: job.id, email, host: hostForWorker};
+}
+
 const deleteInboxJobs=async(email:string)=>{
   try{
-    const key=`inbox-read-scheduler:${email}`;
+    const key=`inbox-read-scheduler_${email}`;
     const isRemoved=await inboxQueue.removeJobScheduler(key);
     if (isRemoved) {
             console.log(`Successfully removed repeatable job schedule for email: ${email} (Key: ${key})`);
@@ -236,4 +253,4 @@ const verifyEmailAddress=async(email:string) : Promise<boolean>=>{
 }
 
 
-export {sendEmail,verifyEmail,deleteInboxJobs,sendEmailReply,deleteEmailJobs,addUtmSource,verifyEmailAddress,getSMTPHost,SMTP_HOST_MAP,getIMAPHost,IMAP_HOST_MAP};
+export {sendEmail,verifyEmail,deleteInboxJobs,sendEmailReply,deleteEmailJobs,addUtmSource,verifyEmailAddress,getSMTPHost,SMTP_HOST_MAP,getIMAPHost,IMAP_HOST_MAP,enqueueInboxTestJob};
