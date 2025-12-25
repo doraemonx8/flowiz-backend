@@ -1,7 +1,7 @@
 import axios from "axios";
 import { getWABAIDAndToken } from "../models/templateModel";
 
-const PUBLIC_MEDIA_BASE_URL = "https://cybernauts.one/server-panel-ts/uploads/"; // add this to fileName
+const PUBLIC_MEDIA_BASE_URL = "https://cybernauts.online/server-panel-ts/uploads/"; // add this to fileName
 
 const metaTypeToMediaHandleMap={
   "image": "4::aW1hZ2UvcG5n:ARaB_RtVAkwWEiKTjaEFQIppS1JIidQdxGdRB9Vyg-WhdckkyY0tB0f8BWSSJf1THGERH2Mo-f-lw3Uqt5W0-SYG-F7L911DKPv0wijqSOTqfw:e:1763734357:1140075601094888:100001687350501:ARZ76f04Q8V9Di9rsGI",

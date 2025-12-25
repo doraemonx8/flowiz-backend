@@ -4,7 +4,7 @@ export const msalConfig={
         clientId: process.env.OUTLOOK_CLIENT_ID || '',
         clientSecret: process.env.OUTLOOK_CLIENT_SECRET || '',
         authority: `https://login.microsoftonline.com/${process.env.OUTLOOK_TENANT_ID || 'common'}`, // 'common' for multi-tenant, or your specific tenant ID
-        redirectUri:'https://cybernauts.one/alpha16/outlook/connect',
+        redirectUri:'https://cybernauts.online/alpha16/outlook/connect',
     },
     system: {
         loggerOptions: {

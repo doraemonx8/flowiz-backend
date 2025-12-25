@@ -13,7 +13,7 @@ const refreshAccessToken = async (userId: string, refreshToken: string): Promise
         const authClient = new OAuth2Client({
             clientId: keys.web.client_id,
             clientSecret: keys.web.client_secret,
-            redirectUri: "https://cybernauts.one/alpha16"
+            redirectUri: "https://cybernauts.online/alpha16"
         });
 
         // Set the refresh token
@@ -120,7 +120,7 @@ const ensureValidToken = async (userId: string): Promise<OAuth2Client | null> =>
         const authClient = new OAuth2Client({
             clientId: keys.web.client_id,
             clientSecret: keys.web.client_secret,
-            redirectUri: "https://cybernauts.one/alpha16/google/connect"
+            redirectUri: "https://cybernauts.online/alpha16/google/connect"
         });
 
         const storedTokens = await getTokensFromDB(userId,'google');
@@ -278,7 +278,7 @@ const saveGoogleMail = async (userId:string,access_token: string): Promise<boole
     const authClient = new google.auth.OAuth2(
       keys.web.client_id,
       keys.web.client_secret,
-      "https://cybernauts.one/alpha16/google/connect"
+      "https://cybernauts.online/alpha16/google/connect"
     );
 
     authClient.setCredentials({ access_token });
@@ -309,7 +309,7 @@ const setupGmailWatch = async (access_token: string) => {
     const authClient = new google.auth.OAuth2(
       keys.web.client_id,
       keys.web.client_secret,
-      "https://cybernauts.one/alpha16/google/connect"
+      "https://cybernauts.online/alpha16/google/connect"
     );
 
     authClient.setCredentials({ access_token });

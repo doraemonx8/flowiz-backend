@@ -88,13 +88,13 @@ Your task is to replace the variables in the message with the corresponding valu
 
 
 **Input:**
-- Message: "Thanks for all the info. Here's a link to your desired property : https://cybernauts.one/housp/properties?location=[desired_property_location]&propertyType={{property_type}}&amount=0L-{{max_budget}}"
+- Message: "Thanks for all the info. Here's a link to your desired property : https://cybernauts.online/housp/properties?location=[desired_property_location]&propertyType={{property_type}}&amount=0L-{{max_budget}}"
 - Intents: {"customer_name": "John","customer_email":"john@gmail.com","desired_property_location":"Gurgaon","property_type":"Apartments","max_budget":"2Cr", "occupation": "teacher", "salary": "35000"}
 - Channel : "web"
 **Output:**
 
 {
-  "message": "Thanks for all the info. Here's a link to your desired property : [link]https://cybernauts.one/housp/properties?location=Gurgaon&propertyType=Apartment&amount=0L-2Cr[link]",
+  "message": "Thanks for all the info. Here's a link to your desired property : [link]https://cybernauts.online/housp/properties?location=Gurgaon&propertyType=Apartment&amount=0L-2Cr[link]",
   "status": "false",
   "reason": "Replaced {{desired_property_location}} with Gurgaon, {{property_type}} with Apartment, and {{max_budget}} with 2Cr."
 }

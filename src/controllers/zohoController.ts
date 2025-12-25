@@ -17,7 +17,7 @@ const getAuthURL=async(req:Request,res:Response):Promise<any>=>{
 
         const scope="ZohoMail.messages.READ,ZohoMail.accounts.READ,ZohoMail.messages.CREATE,aaaserver.profile.READ";
 
-        const redirectURI='https://cybernauts.one/alpha16/zoho/connect';
+        const redirectURI='https://cybernauts.online/alpha16/zoho/connect';
 
         const url=`https://accounts.zoho.in/oauth/v2/auth?client_id=${process.env.ZOHO_CLIENT_ID}&response_type=code&redirect_uri=${redirectURI}&scope=${scope}&access_type=offline&state=${state}`;
 
@@ -38,7 +38,7 @@ const connectZoho = async (req: Request, res: Response): Promise<any> => {
 
         const { userId } = JSON.parse(decodeURIComponent(state));
 
-        const redirectURI = 'https://cybernauts.one/alpha16/zoho/connect';
+        const redirectURI = 'https://cybernauts.online/alpha16/zoho/connect';
 
         const tokenURL = `https://accounts.zoho.in/oauth/v2/token`;
 

@@ -66,8 +66,8 @@ const setWebConfig=async(req:Request,res:Response):Promise<any>=>{
         }
 
         const encryptedId=encryptId(updatedId);
-        const jsURL=`https://cybernauts.one/server-panel-ts/bot/bot.js?id=${encryptedId}`;
-        // const cssURL=`https://cybernauts.one/server-panel-ts/bot/bot.css`;
+        const jsURL=`https://cybernauts.online/server-panel-ts/bot/bot.js?id=${encryptedId}`;
+        // const cssURL=`https://cybernauts.online/server-panel-ts/bot/bot.css`;
         return res.status(200).send({status:true,message:"Flow config set/updated",data:{js:jsURL}});
     }catch(err){
 
@@ -306,7 +306,7 @@ const getFlowData=async(req:Request,res:Response):Promise<any>=>{
         botsConfig?.forEach((config : any)=>{
             if(config?.subFlowTypes=='1'){
                 const encryptedId=encryptId(config.id);
-                config['jsURL']=`https://cybernauts.one/server-panel-ts/bot/bot.js?id=${encryptedId}`;
+                config['jsURL']=`https://cybernauts.online/server-panel-ts/bot/bot.js?id=${encryptedId}`;
             }
             delete(config.id);
         })

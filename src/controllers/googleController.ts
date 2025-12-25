@@ -17,7 +17,7 @@ const getAuthURL = async (req: Request, res: Response): Promise<any> => {
     const oauth2Client = new google.auth.OAuth2(
       keys.web.client_id,
       keys.web.client_secret,
-      "https://cybernauts.one/alpha16/google/connect"
+      "https://cybernauts.online/alpha16/google/connect"
     );
 
     const scopes = [
@@ -58,7 +58,7 @@ const connectGoogle = async (req: Request, res: Response): Promise<any> => {
         const authClient = new google.auth.OAuth2(
             keys.web.client_id,
             keys.web.client_secret,
-            "https://cybernauts.one/alpha16/google/connect"
+            "https://cybernauts.online/alpha16/google/connect"
         );
 
         const { tokens } = await authClient.getToken(code as string);
