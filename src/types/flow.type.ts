@@ -10,6 +10,18 @@ export type EmailNode = BaseNode & {
   body: string
 }
 
+export type WhatsappNode = BaseNode & {
+  type :"whatsappNode"
+  data : {
+    prompt:string;
+    message:string;
+    template:string;
+    templateFile:string;
+    variableValues:Record<string,string>
+
+  }
+}
+
 
 export type DecisionNode = BaseNode & {
   type: "decision"
@@ -31,7 +43,15 @@ export type FollowUpEmailItem = {
   body: string
 }
 
-export type FollowUpItem = DelayItem | FollowUpEmailItem
+export type FollowUpWhatsappItem = {
+  type : "template" | "text"
+  variableValues : Record<string,string>
+  template?:string
+  templateFile?:string
+  message?:string
+}
+
+export type FollowUpItem = DelayItem | FollowUpEmailItem | FollowUpWhatsappItem
 
 
 export type FollowUpNode = BaseNode & {
@@ -44,5 +64,6 @@ export type FlowNode =
   | EmailNode
   | DecisionNode
   | FollowUpNode
+  | WhatsappNode
 
 export type FlowData = FlowNode[]

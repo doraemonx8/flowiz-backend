@@ -10,8 +10,12 @@ type ScheduleMessagesParams = {
 type Channel = "email" | "web" | "whatsapp" | "call";
 
 type ScheduledJob = {
-  subject: string;
-  body: string;
+  subject?: string;
+  body?: string;
+  message?:string;
+  template?:string;
+  templateFile?:string;
+  variableValues?:Record<string,string>
   delay: {
     hourDelay: number;
     minDelay: number;
@@ -20,7 +24,7 @@ type ScheduledJob = {
 };
 
 // returns an array of jobs with delay
-const scheduleMessages = async ({ currentNodeId, flowData }: ScheduleMessagesParams,_channel: Channel): Promise<ScheduledJob[]> => {
+const scheduleMessages = async ({ currentNodeId, flowData }: ScheduleMessagesParams,channel: Channel): Promise<ScheduledJob[]> => {
 
   const currentNode = flowData.find(node => node.id === currentNodeId);
   if (!currentNode) return [];
@@ -36,6 +40,8 @@ const scheduleMessages = async ({ currentNodeId, flowData }: ScheduleMessagesPar
     let secDelay = 0;
 
     for (const item of nextNode.data) {
+
+      //-----------Delay-----------
       if (item.type === "delay") {
         hourDelay += Number(item.hours) || 0;
         minDelay += Number(item.mins) || 0;
@@ -43,20 +49,37 @@ const scheduleMessages = async ({ currentNodeId, flowData }: ScheduleMessagesPar
         continue;
       }
 
-      jobs.push({
-        subject: item.subject,
-        body: item.body,
-        delay: {
-          hourDelay,
-          minDelay,
-          secDelay
-        }
-      });
-    }
-  }
+      const job: ScheduledJob={delay : {hourDelay,minDelay,secDelay}};
 
-  return jobs;
-};
+
+      if(channel === "email" && item.type==="email"){
+
+        job.subject=item.subject;
+        job.body=item.body;
+        jobs.push(job);
+        continue;
+
+      }
+      
+      
+      if(channel === "whatsapp" && (item.type==="template" || item.type==="text")){
+
+
+        job.variableValues = item.variableValues;
+
+        if (item.type === "template") {
+          job.template = item.template;
+          job.templateFile = item.templateFile;
+        } else {
+          job.message = item.message;
+        }
+
+        jobs.push(job);
+        }
+      }
+    }
+    return jobs;
+  };
 
 
 type removeJobsParams = {
