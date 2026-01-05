@@ -1,17 +1,19 @@
-type EmailNode = {
-  id: string;
-  type: string;
-  data: {
-    subject?: string;
-    body?: string;
-    hourDelay?: string;
-    minDelay?: string;
-    secDelay?: string;
-    isFirst: boolean;
-    isLast: boolean;
-  };
-  next: string[] | null;
-};
+import { scheduleMessages } from "./scheduleUtil";
+import { EmailNode } from "../types/flow.type";
+// type EmailNode = {
+//   id: string;
+//   type: string;
+//   data: {
+//     subject: string;
+//     body: string;
+//     hourDelay?: string;
+//     minDelay?: string;
+//     secDelay?: string;
+//     isFirst: boolean;
+//     isLast: boolean;
+//   };
+//   next: string[] | null;
+// };
 
 function buildEmailSequence(nodes: EmailNode[], leadName: string) {
   const nodeMap = new Map(nodes.map((node) => [node.id, node]));
@@ -24,6 +26,15 @@ function buildEmailSequence(nodes: EmailNode[], leadName: string) {
   let hourDelay = 0;
   let minDelay = 0;
   let count = 0;
+
+  const {data,id}=current as EmailNode;
+    return [
+      {
+        id,
+        subject : data.subject.replaceAll("{{lead_name",leadName),
+        body: data.subject.replaceAll("{{lead_name",leadName)
+      },...scheduleMessages({currentNodeId : id,flowData:nodes},"email")
+    ]
 
   while (current) {
     const { data, next, type, id } = current;
@@ -56,6 +67,15 @@ const createEmailJobsDataFromFlow = (subFlow: any, leadName: string) => {
     const isJsonData = subFlow.json && (!subFlow.flowData || !subFlow.flowData.length);
     //if json data then loop over it to create email jobs
     if (isJsonData) {
+
+      //only first email needs to be sent
+      const emailData=subFlow.json[0];
+      return [{
+
+        id : 0,
+        subject : emailData.subject.replaceAll("{{lead_name}}",leadName),
+        body: emailData.body.replaceAll("{{lead_name}}",leadName)
+      },...scheduleMessages({currentNodeId : 0,flowData:subFlow.json},"email")];
       let hourDelay = 0;
       let minDelay = 0;
       const data = subFlow.json.map((item: any, index: number) => {

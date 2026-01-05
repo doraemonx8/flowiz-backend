@@ -1,13 +1,22 @@
 export type BaseNode = {
   id: string
   next: string[]
+
 }
 
 
 export type EmailNode = BaseNode & {
   type: "email"
-  subject: string
-  body: string
+  data : {
+    subject: string
+    body: string
+    hourDelay?: string;
+    minDelay?: string;
+    secDelay?: string;
+    isFirst: boolean;
+    isLast: boolean;
+  }
+  
 }
 
 export type WhatsappNode = BaseNode & {

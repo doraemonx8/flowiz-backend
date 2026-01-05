@@ -24,7 +24,7 @@ type ScheduledJob = {
 };
 
 // returns an array of jobs with delay
-const scheduleMessages = async ({ currentNodeId, flowData }: ScheduleMessagesParams,channel: Channel): Promise<ScheduledJob[]> => {
+const scheduleMessages = ({ currentNodeId, flowData }: ScheduleMessagesParams,channel: Channel): ScheduledJob[] => {
 
   const currentNode = flowData.find(node => node.id === currentNodeId);
   if (!currentNode) return [];

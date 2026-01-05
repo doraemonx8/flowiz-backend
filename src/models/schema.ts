@@ -1,12 +1,18 @@
 import { Schema,Document,model } from "mongoose";
 
 
+
+type EmailAuth = {
+  type : string;
+  host : string;
+  email : string;
+  password : string;
+}
 interface IChat extends Document {
     companyId: string;
     userId: string;
     adminId:string;
-    adminMail?:string;
-    threadId?:string,
+    emailAuth?:EmailAuth
     flowId:string;
     botRole:string;
     currentFlowNodeId:string | number;
@@ -32,7 +38,7 @@ const ChatSchema = new Schema<IChat>({
   companyId: { type: String, required: true },
   userId: { type: String, required: true },
   adminId:{type:String},
-  adminMail:{type:String},
+  emailAuth :{type:String},
   flowId: { type: String, required: true },
   ip:{type:String},
   userAgent:{type:String},
