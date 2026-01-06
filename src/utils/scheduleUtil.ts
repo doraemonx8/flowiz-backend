@@ -1,64 +1,104 @@
 import { getJobIdsToRemove } from "../models/jobModel";
-import { getChatDetails, getCurrentFlowData } from "./botMongo";
-import { createJobsFromFlow } from "./channelWorkerUtil";
+import { FlowData} from "../types/flow.type";
+import { deleteEmailJobs } from "./emailUtil";
+
+type ScheduleMessagesParams = {
+  currentNodeId: string | number;
+  flowData: FlowData;
+};
+
+type Channel = "email" | "web" | "whatsapp" | "call";
+
+type ScheduledJob = {
+  subject?: string;
+  body?: string;
+  message?:string;
+  template?:string;
+  templateFile?:string;
+  variableValues?:Record<string,string>
+  delay: {
+    hourDelay: number;
+    minDelay: number;
+    secDelay: number;
+  };
+};
+
+// returns an array of jobs with delay
+const scheduleMessages = ({ currentNodeId, flowData }: ScheduleMessagesParams,channel: Channel): ScheduledJob[] => {
+
+  const currentNode = flowData.find(node => node.id === currentNodeId);
+  if (!currentNode) return [];
+
+  const jobs: ScheduledJob[] = [];
+
+  for (const nextNodeId of currentNode.next) {
+    const nextNode = flowData.find(node => node.id === nextNodeId);
+    if (!nextNode || nextNode.type !== "followUp") continue;
+
+    let hourDelay = 0;
+    let minDelay = 0;
+    let secDelay = 0;
+
+    for (const item of nextNode.data) {
+
+      //-----------Delay-----------
+      if (item.type === "delay") {
+        hourDelay += Number(item.hours) || 0;
+        minDelay += Number(item.mins) || 0;
+        secDelay += Number(item.sec) || 0;
+        continue;
+      }
+
+      const job: ScheduledJob={delay : {hourDelay,minDelay,secDelay}};
 
 
-const scheduleMessages=async(params : any,type:string)=>{
+      if(channel === "email" && item.type==="email"){
 
-    // try{
+        job.subject=item.subject;
+        job.body=item.body;
+        jobs.push(job);
+        continue;
 
-    //     const prevNodeId=params.currentNodeId;
-    //     const {flowData,currentFlowNodeId,isCompleted,isAgentHandover}=await getCurrentFlowData(params.chatId);
-
-    //     const chatData=await getChatDetails(params.chatId);
-    //     const campaignId=await 
-    //     //checking if any prev jobs for prev node exists;delete them
-    //     // const pendingEmailJobs =await getJobIdsToRemove(chatData.companyId,chatData.adminId,chatData.flowId,chatData.userId);
-
-    //     //removing these jobs
-    //     // await deleteEmailJobs(pendingEmailJobs as Array<string>);
-    //     if(isCompleted==true || isAgentHandover==true){
-    //         return true;
-    //     }
+      }
+      
+      
+      if(channel === "whatsapp" && (item.type==="template" || item.type==="text")){
 
 
-    //     const nodeData=flowData.filter((node : any) => node.id === currentFlowNodeId)[0];
+        job.variableValues = item.variableValues;
 
-    //     const scheduledFlow=nodeData?.scheduleData || null;
+        if (item.type === "template") {
+          job.template = item.template;
+          job.templateFile = item.templateFile;
+        } else {
+          job.message = item.message;
+        }
 
-    //     if (Boolean(scheduledFlow)){
-
-    //         //getting scheduled messages
-    //         const jobs = createJobsFromFlow(scheduledFlow);
-
-    //         //adding in queue
-    //         if(type==="email"){
-
-
-                
-    //             for(const job of jobs){
-    //                const payload = { subject: job.subject, body: job.body, leadId: chatData.userId,flowId:params.flowId, email, phone, campaignId, companyId,userId,nodeId:job.id,flowData:subFlow.flowData || subFlow.json,userEmailData:userEmail };
-          
-    //                 if (!emailData.delay) {
-
-    //                 //adding in jobs
-    //                 const jobId=`${new Date().getTime()}_email_${id}`;
-    //                 await addJob(jobId as string,companyId,userId,subFlow.id,campaignId,id as string,"email");
-    //                 await emailQueue.add("email-job", payload,{jobId,delay:(leadCount-1) * 1000*120}); //default 2min delay for each mail
-
-                    
-    //                 }
-    //             }
-                
-    //         }
-          
-    //     }
-        
-        
-    // }catch(err){
+        jobs.push(job);
+        }
+      }
+    }
+    return jobs;
+  };
 
 
-    // }
+type removeJobsParams = {
+    companyId:string;
+    userId : string;
+    flowId : string;
+    leadId : string;
 }
 
-export default scheduleMessages;
+
+const removeScheduledJobs = async ({userId,flowId,companyId,leadId} : removeJobsParams) : Promise<boolean>=>{
+
+
+    const jobs = await getJobIdsToRemove(companyId,userId,flowId,leadId);
+    if(!jobs) return true;
+
+    return await deleteEmailJobs(jobs);
+
+}
+
+
+export {scheduleMessages,removeScheduledJobs};

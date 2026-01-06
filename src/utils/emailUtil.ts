@@ -221,8 +221,8 @@ const deleteEmailJobs=async(jobIds:Array<string>)=>{
         } else {
             console.warn(`BullMQ job ${jobId} not found in queue. It might have already completed or been auto-removed.`);
         }
-       
     }
+    return true;
   }catch(err){
     console.error(err);
     return false;

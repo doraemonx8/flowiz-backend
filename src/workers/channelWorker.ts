@@ -63,7 +63,7 @@ const emailWorker=new Worker('email-queue',async(job :any)=>{
         companyId,
         flowId,
         flowData:JSON.stringify(flowData),
-        // threadId,
+        emailAuth:JSON.stringify(userEmailData),
         userId:leadId,
         adminId:userId,
         adminMail:userEmailData.userEmail,
