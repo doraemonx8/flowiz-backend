@@ -261,7 +261,8 @@ const sendNextMail = async (chat: any, email: string, replyText: string) => {
 
     if (!currentNode.next?.length) {
         console.log("[sendNextMail] No next nodes — handing over to agent.");
-        return updateEmailChat(_id, { isAgentHandover: true });
+        await updateEmailChat(_id, { isAgentHandover: true });
+        return;
     }
 
     // ── Categorise nodes referenced in current.next ──────────────────────
@@ -331,7 +332,8 @@ const sendNextMail = async (chat: any, email: string, replyText: string) => {
             console.log("[sendNextMail] Linear advance → next email:", targetNodeId);
         } else {
             console.log("[sendNextMail] No actionable next node — handing over to agent.");
-            return updateEmailChat(_id, { isAgentHandover: true });
+            await updateEmailChat(_id, { isAgentHandover: true });
+            return;
         }
     }
 
