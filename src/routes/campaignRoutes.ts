@@ -7,11 +7,13 @@ import createSubFlowsForCampaign from "../middleware/createSubFlowsForCampaign";
 import validateEmailAgent from "../middleware/emailAgent";
 import validateCampaignTime from "../middleware/campaignTime";
 
+import { checkQuota } from "../middleware/quotaMiddleware";
+
 
 const campaignRouter = Router();
 
 
-campaignRouter.post('/schedule', verifyJWT,validateCampaign,createSubFlowsForCampaign,validateEmailAgent,validateCampaignTime,scheduleCampaign);
+campaignRouter.post('/schedule', verifyJWT,validateCampaign,createSubFlowsForCampaign,validateEmailAgent,validateCampaignTime, checkQuota('campaigns'),scheduleCampaign);
 campaignRouter.post('/pause', verifyJWT, pauseCampaign);
 campaignRouter.post('/resume',verifyJWT,resumeCampaign);
 campaignRouter.post('/cancel',verifyJWT,cancelCampaign);

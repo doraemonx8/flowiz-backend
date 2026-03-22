@@ -6,10 +6,10 @@ import path from "path";
 import crypto from "crypto";
 
 import verifyJWT from "../authMiddleware";
-import checkFaqAddLimit from "../middleware/checkFaqAddLimit";
-const faqRouter=Router();
-
 import multer from 'multer';
+import { checkQuota } from "../middleware/quotaMiddleware";
+
+const faqRouter=Router();
 
 const storage = multer.diskStorage({
   destination: path.resolve(__dirname, '../../uploads/faq'),
@@ -22,9 +22,9 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 
 
-faqRouter.post('/add-doc',upload.single('doc'),verifyJWT,checkFaqAddLimit,addFAQByDoc);
+faqRouter.post('/add-doc',upload.single('doc'),verifyJWT, checkQuota('kb_file_length'), addFAQByDoc);
 faqRouter.delete("/doc",verifyJWT,deleteFAQByDoc)
-faqRouter.post('/',verifyJWT,checkFaqAddLimit,addFaq);
+faqRouter.post('/',verifyJWT, checkQuota('kb_faq'), addFaq);
 faqRouter.get('/',verifyJWT,getAllFaq);
 faqRouter.delete('/',verifyJWT,deleteFAQ);
 // router.post('/add',addFAQ);

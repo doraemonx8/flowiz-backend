@@ -11,8 +11,7 @@ import { createCampaign, getCampaignIdBySlug, updateCampaignAudience } from '../
 import {encryptId,decryptId} from "../utils/encryptDecrypt";
 import { jsonrepair } from "jsonrepair";
 // import { addUtmSource } from '../utils/emailUtil';
-
-
+import QuotaEngine from '../utils/quotaEngine';
 
 const slugify = (str: string) => {
   return str
@@ -45,6 +44,7 @@ const createParentFlow=async(req:Request,res:Response):Promise<any>=>{
         //creating new camapign
         const name=`${flow.product_name}-${flow.target}`
         await createCampaign(userId,companyId,flowData.id,name,subscriptionId);
+        await QuotaEngine.deductUsage({userId,featureSlug: 'campaigns',amount: 1,source: 'consumption',description: `Created Flow/Campaign: ${name}`});
         return res.status(200).send({status:true,flow:{...flow,slug}});
     }catch(err){
         console.error("An error occured while getting parent flow : ",err);
@@ -66,8 +66,10 @@ const setWebConfig=async(req:Request,res:Response):Promise<any>=>{
         }
 
         const encryptedId=encryptId(updatedId);
-        const jsURL=`https://cybernauts.online/server-panel-ts/bot/bot.js?id=${encryptedId}`;
+        // const jsURL=`https://cybernauts.online/server-panel-ts/bot/bot.js?id=${encryptedId}`;
+        const jsURL=`https://flowiz.biz/bot/bot.js?id=${encryptedId}`;
         // const cssURL=`https://cybernauts.online/server-panel-ts/bot/bot.css`;
+        await QuotaEngine.deductUsage({userId,featureSlug: 'chatbot_agents',amount: 1,source: 'consumption',description: `chatbot_agents added.`});
         return res.status(200).send({status:true,message:"Flow config set/updated",data:{js:jsURL}});
     }catch(err){
 
@@ -169,6 +171,19 @@ const getSubFlow = async (req: Request, res: Response): Promise<any> => {
         if (!(type in typeToTypeId)) {
             return res.status(400).json({ status: false, message: "Invalid type provided" });
         }
+
+        const typeToSlug: Record<string, string> = { 
+            email: "email_agents", 
+            chat: "chatbot_agents", 
+            call: "call_agents", 
+            whatsapp: "whatsapp_agents" 
+        };
+
+        const quotaResult = await QuotaEngine.checkQuota(userId, typeToSlug[type]);
+        if (!quotaResult.allowed) {
+            return res.status(429).send(QuotaEngine.formatQuotaError(quotaResult));
+        }
+        
         const subFlowData = await getSubFlowDataFromDB(slug, typeToTypeId[type],userId);
         // Ensure subFlowData is properly formatted
         const subFlowDataDataExists = Boolean(subFlowData.length > 0 && (subFlowData[0].flowData || subFlowData[0].json));
@@ -304,9 +319,9 @@ const getFlowData=async(req:Request,res:Response):Promise<any>=>{
         const botsConfig=await getSubflowsConfig(userId,slug as string);
 
         botsConfig?.forEach((config : any)=>{
-            if(config?.subFlowTypes=='1'){
+            if(config?.subFlowTypes=='2'){
                 const encryptedId=encryptId(config.id);
-                config['jsURL']=`https://cybernauts.online/server-panel-ts/bot/bot.js?id=${encryptedId}`;
+                config['jsURL']=`https://flowiz.biz/bot/bot.js?id=${encryptedId}`;
             }
             delete(config.id);
         })

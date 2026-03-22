@@ -15,6 +15,8 @@ import {getCompanyIdByFlow} from "../models/flowModel";
 import BotGraph from '../utils/botGraph';
 import { incrementMessageLedger } from '../models/chats';
 
+import QuotaEngine from '../utils/quotaEngine';
+
 
 const botController=async (message :string,chatId : string, flowId : string,userId:string,companyId:string,ip?:string,userAgent?:string )=>{
     
@@ -196,8 +198,17 @@ const sendBotMessage = async (req: Request, res: Response) : Promise<any> => {
         // Get User-Agent
         const userAgent = req.headers['user-agent'] || '';
 
-        const response = await botController(message, chatId, flowId,userId,companyId,ip,userAgent);
+        const response = await botController(message, chatId, flowId,userId,companyId.companyId,ip,userAgent);
 
+        if (!response?.isAgent) {
+            await QuotaEngine.deductUsage({
+                userId: companyId.adminId,
+                featureSlug: 'chatbot_messages',
+                amount: 1,
+                source: 'consumption',
+                description: `Web Chatbot message sent for chat: ${chatId}`
+            });
+        }
 
         if (typeof (response?.botResponse) === 'object') {
             // If botResponse is an object, return its message property
@@ -240,6 +251,16 @@ const testGraph=async(req:Request,res:Response):Promise<any>=>{
         const state=await botGraph.processMessage({chatId,message,userId,companyId,adminId,flowId,ip,userAgent},{});
         
         const response=state.params.botResponse;
+
+        if (state.params.isAgentHandover == false) {
+            await QuotaEngine.deductUsage({
+                userId: req.body.userId,
+                featureSlug: 'chatbot_messages',
+                amount: 1,
+                source: 'consumption',
+                description: `Test Graph Bot message sent`
+            });
+        }
 
 
         //adding in ledger

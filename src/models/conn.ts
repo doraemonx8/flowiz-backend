@@ -2,6 +2,10 @@ import { Sequelize } from 'sequelize';
 import Flow from "../models/flow";
 import dotenv from 'dotenv';
 
+import User from "./user";
+import Plan from "./plan";
+import Transaction from "./transaction";
+
 dotenv.config();
 
 const DB_NAME = process.env.DB_NAME || 'campaign';
@@ -21,7 +25,7 @@ const sequelize = new Sequelize(DB_NAME, DB_USER, DB_PASSWORD, {
   },
 });
 
-const db: { Sequelize: typeof Sequelize; sequelize: Sequelize; flows: any } = {} as any;
+const db: { Sequelize: typeof Sequelize; sequelize: Sequelize; flows: any; users: any; plans: any; transactions: any } = {} as any;
 
 async function initializeDatabase() {
   try {
@@ -41,6 +45,9 @@ async function initializeDatabase() {
       console.log('All models were synchronized successfully in campaign');
     });
 
+  db.users = await User(sequelize);
+  db.plans = await Plan(sequelize);
+  db.transactions = await Transaction(sequelize);  
   db.flows = await Flow(sequelize);
   db.sequelize=sequelize;
 }

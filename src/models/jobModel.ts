@@ -40,18 +40,14 @@ const updateJobStatus=async(id:string,status:string,reason?:string)=>{
 
 
 const getJobIdsToRemove=async(companyId:string,adminId:string,flowId:string,leadId:string)=>{
-
     try{
-
-        const jobs=await Job.find({companyId,userId:adminId,leadId,flowId,status:"pending"});
-
-
+        const jobs =await Job.find({companyId,userId:adminId,leadId,flowId,status:"pending"});
         //updating
         await Job.updateMany(
             {_id:{$in:jobs}},
             {$set:{status:"removed"}}
         );
-        return jobs.map((job)=> job._id);
+        return jobs.map((job) => job._id) as string[];
     }catch(err){
         console.error(err);
         return [];

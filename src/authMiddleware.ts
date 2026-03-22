@@ -5,6 +5,8 @@ interface DecodedToken {
     sub: string | number;
     companyId:string | number;
     access:string|number;
+    name?: string;      
+    username?: string;
     iat?: number;
     exp?: number;
 }
@@ -30,6 +32,7 @@ const verifyJWT = (req: Request, res: Response, next: NextFunction): void => {
         }
         
         // console.log("decoded =>",decoded);
+        (req as any).user = decoded;
         req.body ||= {};
         req.body.userId = decoded.sub;
         req.body.companyId = decoded.companyId;

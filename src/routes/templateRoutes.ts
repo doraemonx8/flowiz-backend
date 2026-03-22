@@ -7,6 +7,8 @@ import multer from "multer";
 import path from "path";
 import crypto from "crypto";
 
+import { checkQuota } from "../middleware/quotaMiddleware";
+
 const templateRouter = Router();
 
 
@@ -22,10 +24,10 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 templateRouter.get('/', verifyJWT, getTemplates);
-templateRouter.post('/',verifyJWT, sendTemplates);
+templateRouter.post('/',verifyJWT, checkQuota('templates'), sendTemplates);
 templateRouter.put('/',verifyJWT, sendTemplates);
 templateRouter.get('/meta',verifyJWT,getMetaApprovedTemplates);
-templateRouter.post('/send-template-message',verifyJWT,sendTemplateMessage);
+templateRouter.post('/send-template-message',verifyJWT, checkQuota('whatsapp_messages'),sendTemplateMessage);
 templateRouter.post('/upload',verifyJWT,upload.single('templateFile'),uploadTemplateFile);
 
 export default templateRouter;

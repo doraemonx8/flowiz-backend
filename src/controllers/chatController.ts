@@ -38,7 +38,14 @@ const getChats = async (req: Request, res: Response) => {
     const ids = [...new Set(chats.filter(c => c.channel !== "web" && c.userId).map(c => String(c.userId)))];
 
     // collect flowIds for all chats
-    const flowIds = [...new Set(chats.filter(c => c.flowId).map(c => String(c.flowId)))];
+    // const flowIds = [...new Set(chats.filter(c => c.flowId).map(c => String(c.flowId)))];
+    const flowIds = [...new Set(chats.map(c => c.flowId)
+      .filter(id => {
+        if (typeof id === "string" || typeof id === "number") return true;
+        console.warn("Invalid flowId detected:", id);
+        return false;})
+      .map(id => String(id)
+    ))];
 
     let leadMap = new Map();
     let flowMap = new Map();

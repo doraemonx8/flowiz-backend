@@ -4,6 +4,8 @@ import { verifyEmail, deleteInboxJobs, getSMTPHost, enqueueInboxTestJob } from '
 import { getCampaignProgress, updateCampaignStatusDB } from '../models/campaignModel';
 import { decryptId, encryptId } from '../utils/encryptDecrypt';
 
+import QuotaEngine from '../utils/quotaEngine';
+
 interface EmailData{
     id:string;
     campaignId:string;
@@ -58,8 +60,10 @@ const saveEmail = async (req: Request, res: Response): Promise<any> => {
         const { status, message } = await insertEmail(userId, type, email, password, type === 'custom' ? host : undefined);
         if(status){
             const smtpHost = getSMTPHost(type, host);
-            verifyEmail({host:smtpHost,userEmail:email,userPassword:password,from:email,to:"rahul.solanki@cybernauts.in",subject:"Email Activation",body:"Hey, Email sent before adding"},userId,subscriptionId);
-        return res.status(status ? 200 : 400).send({ status, message });
+            verifyEmail({host:smtpHost,userEmail:email,userPassword:password,from:email,to:"rahul.solanki@cybernauts.in",subject:"Email Activation",body:"Hey, Email sent before adding"},userId);
+            return res.status(200).send({ status, message });
+        }else{
+            return res.status(400).send({ status, message });
         }
     }catch(err){
         console.error("An error occured while saving email");
@@ -76,11 +80,10 @@ const deleteEmail = async (req: Request, res: Response): Promise<any> => {
         if(!isDeleted){
             return res.status(400).send({status:false,message:"Not authorized to delete this email"});
         }
-
+        // Check later to refundUsage if a user deletes an email account
         await deleteInboxJobs(email as string);
         return res.status(200).send({status:true,message:"Email deleted"});
     }catch(err){
-
         console.error("An error occured while deleting mail : ",err);
         return res.status(500).send({status:false,message:"Unable to delete email"});
     }
@@ -95,7 +98,6 @@ const encryptPassword = async (req: Request, res: Response): Promise<any> => {
         return res.status(200).send({status:true,password:encryptedPassword});
     }catch(err){
         console.error("An error occured while encrypting password : ",err);
-
         return res.status(500).send({status:false,message:"some error occured"});
     }
 }

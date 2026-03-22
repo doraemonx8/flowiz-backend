@@ -470,4 +470,18 @@ const updateTimezone=async(campaignId:string,timezone:string,scheduledAt:string)
   }
 }
 
-export {getCampaignData,updateCampaignStatusDB,getCampaignIdBySlug,getCampaignTime,createCampaign,getAllCampaigns,deleteCampaignDB,checkAudienceAndSetLeads,editCampaignNameDB,setTemplateDB,getCampaignProgress,updateCampaignAudience,updateCampaignAgents,saveKeywords,updateCampaignEmail,updateTimezone};
+const getCampaignIdByLeadsId = async (leadId: string): Promise<string | null> => {
+  try {
+    const res = await db.sequelize.query(
+      `SELECT id FROM campaigns WHERE leads = :leadId AND isDeleted = '0' LIMIT 1`,
+      { replacements: { leadId }, type: QueryTypes.SELECT }
+    );
+    return res.length > 0 ? (res[0] as any).id : null;
+  } catch (err) {
+    console.error("Error getting campaignId by leadId:", err);
+    return null;
+  }
+};
+
+
+export {getCampaignData,updateCampaignStatusDB,getCampaignIdBySlug,getCampaignTime,createCampaign,getAllCampaigns,deleteCampaignDB,checkAudienceAndSetLeads,editCampaignNameDB,setTemplateDB,getCampaignProgress,updateCampaignAudience,updateCampaignAgents,saveKeywords,updateCampaignEmail,updateTimezone,getCampaignIdByLeadsId};

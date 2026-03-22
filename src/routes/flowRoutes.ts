@@ -2,16 +2,16 @@ import { Router } from "express";
 import { createParentFlow,setWebConfig,getWebConfig,validateFlowPrompt,generateEmailByPrompt,getSubFlow,setFlowConfig,getFlowConfig,getEncryptedId, getFlowData,setFlowDescriptionData, saveSubFlow,setSubFlowConfig } from "../controllers/flowController";
 
 import verifyJWT from "../authMiddleware";
-import checkCampaignCreataionLimit  from "../middleware/checkCampaignCreationLimit";
+import { checkQuota } from "../middleware/quotaMiddleware";
 
 
 const flowRouter = Router();
 
 
-flowRouter.post('/create-flow', verifyJWT,checkCampaignCreataionLimit, createParentFlow);
-flowRouter.post('/set-config',verifyJWT,setWebConfig);
+flowRouter.post('/create-flow', verifyJWT, checkQuota('campaigns'), createParentFlow);
+flowRouter.post('/set-config',verifyJWT, checkQuota('chatbot_agents'), setWebConfig);
 flowRouter.get('/get-config',getWebConfig);
-flowRouter.post('/check-prompt',verifyJWT,checkCampaignCreataionLimit,validateFlowPrompt);
+flowRouter.post('/check-prompt',verifyJWT, checkQuota('campaigns'),validateFlowPrompt);
 flowRouter.post('/generate-emails',verifyJWT,generateEmailByPrompt);
 flowRouter.get('/get-sub-flow',verifyJWT,getSubFlow);
 flowRouter.post("/config",verifyJWT,setFlowConfig);

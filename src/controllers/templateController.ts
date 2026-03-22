@@ -4,7 +4,7 @@ import {getWABAIDAndToken,getUserTemplates,saveTemplateToDB,getTemplateByID,getP
 
 import {getTemplatesFromMeta,sendOrUpdateTemplateToMeta,sendTemplateMessageFromMeta} from "../utils/meta";
 
-
+import QuotaEngine from '../utils/quotaEngine';
 
 
 const getTemplates=async(req:Request,res:Response):Promise<any>=>{
@@ -135,7 +135,7 @@ const sendTemplates = async (req: Request, res: Response): Promise<any> => {
     const finalStatus = templateStatus === "APPROVED"? "1": templateStatus === "REJECTED"? "0": "2"; // pending or unknown
     // ---------------------- SAVE TO DB ----------------------
     await saveTemplateToDB(companyId,userId,data.name,finalStatus,templateId,JSON.stringify(data),type,templateFor);
-
+    await QuotaEngine.deductUsage({userId,featureSlug: 'templates', amount: 1,source: 'consumption',description: `Meta template saved`});
     return res.status(200).send({ status: true, message: "Template saved successfully" });
   } catch (err) {
     console.error("An error occurred while saving template:", err);
@@ -159,6 +159,17 @@ const sendTemplateMessage=async(req:Request,res:Response):Promise<any>=>{
 
         //sending message via meta template
         const metaTemplateSent=await sendTemplateMessageFromMeta(userId,phone,{template:templateName});
+
+        if (metaTemplateSent) {
+            await QuotaEngine.deductUsage({
+                userId,
+                featureSlug: 'whatsapp_messages',
+                amount: 1,
+                source: 'consumption',
+                description: `Sent Meta template message: ${templateName} to ${phone}`
+            });
+        }
+
         //adding chat - TODO I guess
         return res.status(200).send({data:metaTemplateSent});
     }catch(err){

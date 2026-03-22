@@ -10,6 +10,10 @@ import { getCurrentDate } from "../utils/inboxUtil";
 import { removeScheduledJobs, scheduleMessages } from "../utils/scheduleUtil";
 import { emailQueue } from "../queues/campaignQueue";
 import { EmailNode, FlowData, FlowNode } from "../types/flow.type";
+import { decideNextNode } from "../utils/botUtilPrompt";
+import { getLeadMail } from "../models/leadModel";
+// import { getEmailReplySentiment } from "../utils/botUtilPrompt";
+// import { getCampaignIdByLeadsId } from "../models/campaignModel";
 
 
 const connection = new IORedis({ 
@@ -58,7 +62,7 @@ const inboxWorker = new Worker('inbox-queue', async (job: any) => {
 
         await new Promise<any>((resolve, reject) => {
             imap.once('ready', () => {
-                imap.openBox('INBOX', true, (err: any, box: any) => {
+                imap.openBox('INBOX', false, (err: any, box: any) => {
                     if (err) {
                         imap.end(); 
                         return reject(new Error(`Failed to open inbox: ${err.message}`));
@@ -79,6 +83,7 @@ const inboxWorker = new Worker('inbox-queue', async (job: any) => {
                         const fetch = imap.fetch(results, {
                             bodies: '', 
                             struct: true,
+                            markSeen: true
                         });
 
                         let messagesProcessed = 0;
@@ -103,6 +108,7 @@ const inboxWorker = new Worker('inbox-queue', async (job: any) => {
                                     // Checking if messageId belongs to a chat
                                     if (prevMessageId) {
                                         const chat = await isEmailChatByMessageId(prevMessageId,currMessageId);
+                                        console.log(`[Job ${jobId}] isEmailChatByMessageId result for inReplyTo=${prevMessageId}:`, chat);
                                         if (chat) {
                                             // Adding message in chat
                                             await addMailMessage(chat._id, {
@@ -132,11 +138,14 @@ const inboxWorker = new Worker('inbox-queue', async (job: any) => {
                                                     }
                                                 }
                                             });
-
+                                            console.log("CHAT - ", chat)
+                                            console.log("EMAIL - ", email)
                                             //send next mail & schedule mails
-                                            await sendNextMail(chat,email);
+                                            // await sendNextMail(chat,email);
+                                            await sendNextMail(chat,email,parsed.text || "");
                                             messagesProcessed++;
                                         } else {
+                                            console.warn(`[Job ${jobId}] No chat found for inReplyTo: ${prevMessageId}`);
                                             console.log(`[Job ${jobId}] Message ${currMessageId} is a reply but not linked to existing chat via ${prevMessageId}.`);
                                         }
                                     }
@@ -156,7 +165,8 @@ const inboxWorker = new Worker('inbox-queue', async (job: any) => {
                         fetch.once('end', async () => {
                             console.log(`[Job ${jobId}] ✅ Done fetching messages for ${email}. Processed: ${messagesProcessed}, Failed: ${messagesFailed}`);
                             imap.end();
-                            // await updateEmailData({ history: getCurrentDate() }, userId, email);
+                            // see this commented
+                            await updateEmailData({ history: getCurrentDate() }, userId, email);
                             resolve("completed");
                         });
                     });
@@ -201,45 +211,285 @@ inboxWorker.on('failed', (job : any, err) => {
 });
 
 
-const sendNextMail=async(chat : any,email : string)=>{
+// const sendNextMail=async(chat : any,email : string)=>{
 
-    const {flowData,currentFlowNodeId,userId,campaignId,companyId,emailAuth,_id,flowId}=chat;
+//     const {flowData,currentFlowNodeId,userId,campaignId,companyId,emailAuth,_id,flowId}=chat;
 
-    const parsedFlowData : FlowData=JSON.parse(flowData);
-    const current = parsedFlowData.find(node  => node.id === currentFlowNodeId);
-    if(!current)throw new Error(`Invalid current node Id found in chat :${_id}`);
-
-    if(current.type!=="email")throw new Error(`Invalid Flow Node found in chat : ${_id}`);
-
-    if(!current.next.length) {
-        //updating chat for agent handover
-        return updateEmailChat(chat._id,{isAgentHandover:true});
-    }
-
-    const next = current.next[0];
-    const nextEmail = parsedFlowData.find(node => node.id === next);
-    if(!nextEmail)throw new Error(`Invalid next node Id found : ${_id}`);
-    if(nextEmail.type!=="email")throw new Error(`Invalid flow node found in chat : ${_id}`);
-    const payload = { subject: nextEmail.data.subject, body: nextEmail.data.body, leadId: userId, flowId, email, campaignId, companyId, userId, nodeId: next, flowData, userEmailData: emailAuth };
-    const jobId = `${new Date().getTime()}_email_${next}`;
-    await addJob(jobId as string, chat.companyId, userId, chat.flowId, chat.campaignId, next, "email");
-    await emailQueue.add("email-job", payload, { jobId});
+//     const parsedFlowData : FlowData=JSON.parse(flowData);
+//     console.log("PARSED FLOW DATA - ", parsedFlowData)
     
-    const emailsToSchedule=scheduleMessages({currentNodeId : currentFlowNodeId,flowData},"email");
-    for(const emailJob of emailsToSchedule){
-        const delayHour = Number(emailJob.delay?.hourDelay);
-        const delayMin = Number(emailJob.delay?.minDelay);
-        // Calculate delay in milliseconds
-        const delayInMs = (delayHour * 60 * 60 * 1000) + (delayMin * 60 * 1000);
-        const jobId = `${new Date().getTime()}_email`;
-        payload.nodeId=jobId;
-        payload.subject=emailJob.subject as string;
-        payload.body=emailJob.body as string;
-        await emailQueue.add("email-job", payload, { delay: delayInMs, jobId });
-        //adding in jobs
-        await addJob(jobId, companyId, userId, flowId, campaignId, jobId, "email");
+//     const current = parsedFlowData.find(node  => node.id === currentFlowNodeId);
+//     // const current = parsedFlowData[0];
+//     // const current = parsedFlowData.find((node: FlowNode) => node.id === currentFlowNodeId);
+//     console.log("CURRENT - ", current)
+//     if(!current)throw new Error(`Invalid current node Id found in chat :${_id}`);
+
+//     if(current.type!=="email")throw new Error(`Invalid Flow Node found in chat : ${_id}`);
+
+//     if(!current.next.length) {
+//         //updating chat for agent handover
+//         return updateEmailChat(chat._id,{isAgentHandover:true});
+//     }
+
+//     const next = current.next[0];
+//     console.log("NEXT - ", next)
+//     const nextEmail = parsedFlowData.find(node => node.id === next);
+//     // const data = JSON.parse(flowData)
+//     // const nextEmail = data[4] ;
+//     console.log("NEXT EMAIL - ", nextEmail)
+//     if(!nextEmail)throw new Error(`Invalid next node Id found : ${_id}`);
+//     if(nextEmail.type!=="email")throw new Error(`Invalid flow node found in chat : ${_id}`);
+//     // how to decide the first reply sentiment.
+//     const payload = { subject: nextEmail.data.subject, body: nextEmail.data.body, leadId: userId, flowId, email, campaignId, companyId, userId, nodeId: next, flowData, userEmailData: emailAuth };
+//     console.log("PAYLOAD - ", payload)
+//     const jobId = `${new Date().getTime()}_email_${next}`;
+//     await addJob(jobId as string, chat.companyId, userId, chat.flowId, chat.campaignId, next, "email");
+//     await emailQueue.add("email-job", payload, { jobId});
+    
+//     const emailsToSchedule=scheduleMessages({currentNodeId : currentFlowNodeId,flowData},"email");
+//     for(const emailJob of emailsToSchedule){
+//         const delayHour = Number(emailJob.delay?.hourDelay);
+//         const delayMin = Number(emailJob.delay?.minDelay);
+//         // Calculate delay in milliseconds
+//         const delayInMs = (delayHour * 60 * 60 * 1000) + (delayMin * 60 * 1000);
+//         const jobId = `${new Date().getTime()}_email`;
+//         payload.nodeId=jobId;
+//         payload.subject=emailJob.subject as string;
+//         payload.body=emailJob.body as string;
+//         await emailQueue.add("email-job", payload, { delay: delayInMs, jobId });
+//         //adding in jobs
+//         await addJob(jobId, companyId, userId, flowId, campaignId, jobId, "email");
+//     }
+// }
+
+const sendNextMail = async (chat: any, email: string, replyText: string) => {
+
+    if (chat.isAgentHandover) {
+        console.log(`[sendNextMail] Chat ${chat._id} already in agent handover. Skipping.`);
+        return;
     }
-}
+
+    // chat.userId  = lead ID (e.g. 6704)
+    // chat.adminId = campaign owner / email account owner (e.g. 86)
+    const {
+        flowData,
+        currentFlowNodeId,
+        userId: leadId,
+        adminId,
+        companyId,
+        emailAuth,
+        _id,
+        flowId
+    } = chat;
+
+    console.log("chat UNDER sendNextMail - ",chat)
+    console.log("flowData UNDER sendNextMail - ",flowData)
+
+    // emailAuth is stored as a JSON string
+    const parsedEmailAuth = typeof emailAuth === 'string' ? JSON.parse(emailAuth) : emailAuth;
+
+    // campaignId may not be on the chat document — fetch it if missing
+    const campaignId: string = chat.campaignId;
+    console.log("CONSOLE CAMPAIGN SENDNEXTMAIL - ",campaignId)
+
+    const leadEmail = await getLeadMail(leadId);
+    if (!leadEmail) {
+        console.error(`[sendNextMail] Could not resolve email for leadId: ${leadId}. Aborting.`);
+        return;
+    }
+    console.log(`[sendNextMail] Resolved lead email for leadId ${leadId}: ${leadEmail}`);
+
+    const parsedFlowData: FlowData = JSON.parse(flowData);
+    console.log("[sendNextMail] currentFlowNodeId:", currentFlowNodeId);
+
+    // ── Validate the current (last-sent) node ───────────────────────────
+    const currentNode = parsedFlowData.find(n => n.id === currentFlowNodeId);
+    if (!currentNode) throw new Error(`currentFlowNodeId '${currentFlowNodeId}' not found in chat: ${_id}`);
+    if (currentNode.type !== "email") throw new Error(`Expected email node at '${currentFlowNodeId}', got '${currentNode.type}' in chat: ${_id}`);
+
+    if (!currentNode.next?.length) {
+        console.log("[sendNextMail] No next nodes — handing over to agent.");
+        return updateEmailChat(_id, { isAgentHandover: true });
+    }
+
+    // ── Categorise nodes referenced in current.next ──────────────────────
+    const allNextNodes = currentNode.next
+        .map(id => parsedFlowData.find(n => n.id === id))
+        .filter(Boolean) as NonNullable<typeof parsedFlowData[number]>[];
+
+    const decisionNodes = allNextNodes.filter(n => n.type === "decision");
+    const followUpNodes  = allNextNodes.filter(n => n.type === "followUp");
+    const directEmails   = allNextNodes.filter(n => n.type === "email");
+
+    console.log("[sendNextMail] decisions:", decisionNodes.map(n => n.id), "| followUps:", followUpNodes.map(n => n.id), "| directEmails:", directEmails.map(n => n.id));
+
+    let targetNodeId: string | null = null;
+
+    // ── AI decision routing ──────────────────────────────────────────────
+    if (decisionNodes.length > 0) {
+
+        // Pass the lead's reply as { reply: "..." } so the LLM can evaluate
+        // each decision node's `content` condition against it.
+        // This is identical to how BotGraph._sendMessage calls decideNextNode.
+        const decisionResult = JSON.parse(
+            await decideNextNode(
+                JSON.stringify(decisionNodes),
+                JSON.stringify({ reply: replyText })
+            )
+        );
+
+        console.log("[sendNextMail] decideNextNode result:", decisionResult);
+
+        // decideNextNode returns { next_node: "<decision_node_id>" }
+        // Resolve that decision's first next[] to get the actual email node.
+        // REPLACE WITH THIS:
+        const resolvedNode = parsedFlowData.find(n => n.id === decisionResult.next_node);
+
+        if (!resolvedNode) {
+            console.warn("[sendNextMail] decideNextNode returned unknown node:", decisionResult.next_node, "— falling back.");
+        } else if (resolvedNode.type === "decision" && resolvedNode.next?.length) {
+            targetNodeId = resolvedNode.next[0];
+            console.log(`[sendNextMail] '${resolvedNode.id}' won → target: ${targetNodeId}`);
+        } else if (resolvedNode.type === "email") {
+            targetNodeId = resolvedNode.id;
+            console.log(`[sendNextMail] Bot resolved directly to email node: ${targetNodeId}`);
+        } else {
+            console.warn("[sendNextMail] Unresolvable node type:", resolvedNode.type, "— falling back.");
+        }
+    }
+
+    // ── Fallback when no decision branch resolved ────────────────────────
+    if (!targetNodeId) {
+        if (followUpNodes.length > 0) {
+            console.log("[sendNextMail] No decision resolved — scheduling follow-up sequence.");
+            await scheduleFollowUps({
+                currentNodeId: currentFlowNodeId,
+                parsedFlowData,
+                leadId,
+                adminId,
+                campaignId,
+                companyId,
+                flowId,
+                rawFlowData: flowData,
+                email: leadEmail as string,
+                parsedEmailAuth,
+            });
+            return;
+        }
+
+        if (directEmails.length > 0) {
+            // Linear flow with no decisions
+            targetNodeId = directEmails[0].id;
+            console.log("[sendNextMail] Linear advance → next email:", targetNodeId);
+        } else {
+            console.log("[sendNextMail] No actionable next node — handing over to agent.");
+            return updateEmailChat(_id, { isAgentHandover: true });
+        }
+    }
+
+    // ── Resolve and send the target email node ───────────────────────────
+    const nextEmailNode = parsedFlowData.find(n => n.id === targetNodeId);
+    if (!nextEmailNode) throw new Error(`Target node '${targetNodeId}' not found in chat: ${_id}`);
+    if (nextEmailNode.type !== "email") throw new Error(`Target node '${targetNodeId}' is '${nextEmailNode.type}', expected 'email' in chat: ${_id}`);
+
+    // Support both flat { subject, body } (flow builder) and nested { data: { subject, body } }
+    const emailSubject = (nextEmailNode as any).subject ?? (nextEmailNode as any).data?.subject;
+    const emailBody    = (nextEmailNode as any).body    ?? (nextEmailNode as any).data?.body;
+
+    const basePayload = {
+        leadId,
+        flowId,
+        email: leadEmail,
+        campaignId,
+        companyId,
+        userId:        adminId,          // adminId owns the sending account
+        flowData,                        // raw JSON string — channelWorker expects this
+        userEmailData: parsedEmailAuth,
+    };
+
+    const jobId = `${Date.now()}_email_${targetNodeId}`;
+    console.log("[sendNextMail] Enqueuing email job:", jobId, "→ node:", targetNodeId);
+
+    await addJob(jobId, companyId, adminId, leadId, flowId, campaignId, "email");
+    await emailQueue.add("email-job", { ...basePayload, subject: emailSubject, body: emailBody, nodeId: targetNodeId }, { jobId });
+
+    // Persist the new current node so the NEXT reply routes from the right place
+    await updateEmailChat(_id, { currentFlowNodeId: targetNodeId });
+
+    // Schedule any follow-ups branching off the newly-sent node
+    const followUpsToSchedule = scheduleMessages(
+        { currentNodeId: targetNodeId as string, flowData: parsedFlowData },
+        "email"
+    );
+
+    for (const emailJob of followUpsToSchedule) {
+        const delayInMs =
+            (Number(emailJob.delay?.hourDelay) * 60 * 60 * 1000) +
+            (Number(emailJob.delay?.minDelay)  * 60 * 1000);
+
+        const followUpJobId = `${Date.now()}_email_followup_${targetNodeId}`;
+        await emailQueue.add("email-job", {
+            ...basePayload,
+            subject: emailJob.subject as string,
+            body:    emailJob.body    as string,
+            nodeId:  followUpJobId,
+        }, { delay: delayInMs, jobId: followUpJobId });
+
+        await addJob(followUpJobId, companyId, adminId, leadId, flowId, campaignId, "email");
+    }
+};
+
+
+/**
+ * Enqueue all email steps inside a followUp node.
+ * Used when the lead's reply doesn't match any decision condition
+ * (neutral / off-topic) and we want to keep the nurture sequence running.
+ */
+const scheduleFollowUps = async (params: {
+    currentNodeId: string;
+    parsedFlowData: FlowData;
+    leadId: string;
+    adminId: string;
+    campaignId: string;
+    companyId: string;
+    flowId: string;
+    rawFlowData: string;
+    email: string;
+    parsedEmailAuth: Record<string, any>;
+}) => {
+    const {
+        currentNodeId, parsedFlowData,
+        leadId, adminId, campaignId, companyId,
+        flowId, rawFlowData, email, parsedEmailAuth,
+    } = params;
+
+    const emailsToSchedule = scheduleMessages({ currentNodeId, flowData: parsedFlowData }, "email");
+    console.log("[scheduleFollowUps] Scheduling", emailsToSchedule.length, "follow-up email(s).");
+
+    for (const emailJob of emailsToSchedule) {
+        // const delayInMs =
+        //     (Number(emailJob.delay?.hourDelay) * 60 * 60 * 1000) +
+        //     (Number(emailJob.delay?.minDelay)  * 60 * 1000);
+        const delayInMs = 2 * 60 * 1000; // TEMP: 2 minutes
+
+        const jobId = `${Date.now()}_email_followup`;
+        await emailQueue.add("email-job", {
+            subject:       emailJob.subject as string,
+            body:          emailJob.body    as string,
+            leadId,
+            flowId,
+            email,
+            campaignId,
+            companyId,
+            userId:        adminId,
+            nodeId:        currentNodeId,
+            flowData:      rawFlowData,
+            userEmailData: parsedEmailAuth,
+        }, { delay: delayInMs, jobId });
+
+        await addJob(jobId, companyId, adminId, leadId, flowId, campaignId, "email");
+    }
+};
 
 // Graceful shutdown
 const shutdown = async () => {

@@ -4,23 +4,16 @@ import { Request,Response,NextFunction } from "express";
 import { decryptId } from "../utils/encryptDecrypt";
 
 const validateEmailAgent=async(req:Request,res:Response,next:NextFunction):Promise<any>=>{
-
     try{
-
         const {isEmailAgent,leadsCount,userId,campaignId,emailId}=req.body;
-
-
         if(!isEmailAgent){
             return next();
         }
-
-
         const emails : any[]=await getAllVerifiedEmails(userId,emailId || "");
         if(!emails.length){
             res.status(404).send({status:false,message:"Need atleast one verified email for Email Agent"});
             return;
         }
-
         const requiredEmailCount=Math.ceil(leadsCount/100); //only 100 leads are allowed per email
 
         if(emails.length<requiredEmailCount){

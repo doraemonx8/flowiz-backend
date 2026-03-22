@@ -8,9 +8,11 @@ import {botController} from "./botController";
 import { sendMessageToAgent } from "../utils/eventManager";
 import { getWABAIDAndToken } from "../models/templateModel";
 import BotGraph from '../utils/botGraph';
-import scheduleMessages from "../utils/scheduleUtil";
+import { scheduleMessages } from "../utils/scheduleUtil";
 // specifically for 8076143089
 import {getLeads, setLeads, createOrUpdateChat} from "../models/chats";
+
+import QuotaEngine from '../utils/quotaEngine';
 
 const APP_SECRET="3c412cb47f456d5a972a1f998e0fc379";
 
@@ -98,6 +100,14 @@ const webhook=async(req:Request,res:Response):Promise<any>=>{
             return res.status(200).send({status:true});
         }
 
+        const quotaResult = await QuotaEngine.checkQuota(chat.adminId, "whatsapp_messages"); //check later for userId
+
+        if (!quotaResult.allowed) {
+            console.warn(`WhatsApp quota exhausted for Admin ID: ${chat.adminId}. Dropping bot reply to prevent overage.`);
+            // Return 200 so Meta doesn't retry the webhook
+            return res.status(200).send({status:true});
+        }
+
         const botGraph=new BotGraph();
         const state=await botGraph.processMessage({chatId : chat._id,message,userId : chat.userId,companyId : chat.companyId,adminId : chat.adminId,flowId : chat.flowId},{});
         
@@ -107,14 +117,29 @@ const webhook=async(req:Request,res:Response):Promise<any>=>{
         console.log("----------response in meta webhook -----------------");
         console.log(response);
         console.log("-------------------------------");
+
+        let messageSent = false;
+
         if (typeof (response) === 'object') {
             // If botResponse is an object, return its message property
             await sendMessageFromMeta(chat.adminId,from,response.message);
             await sendMessageToAgent(chat.companyId,{type:"messageAdded",message:{userId:chat.userId,message:response.message,createdOn:new Date().getTime(),isBot:true,isSeen:false},chatId:chat._id});
+            messageSent = true;
         } else {
             // Otherwise, return botResponse directly
             await sendMessageFromMeta(chat.adminId,from,response);
-            response?.isAgent ? null :  sendMessageToAgent(chat.companyId,{type:"messageAdded",message:{userId:chat.userId,message:response,createdOn:new Date().getTime(),isBot:true,isSeen:false},chatId:chat._id});  
+            response?.isAgent ? null :  sendMessageToAgent(chat.companyId,{type:"messageAdded",message:{userId:chat.userId,message:response,createdOn:new Date().getTime(),isBot:true,isSeen:false},chatId:chat._id}); 
+            messageSent = true; 
+        }
+
+        if (messageSent && !state.params.isAgentHandover) {
+            await QuotaEngine.deductUsage({
+                userId: chat.adminId,
+                featureSlug: 'whatsapp_messages',
+                amount: 1,
+                source: 'consumption',
+                description: `Bot replied via WhatsApp to ${from}`
+            });
         }
 
         //schedulle messages for current chat
@@ -151,7 +176,7 @@ const connectMeta=async(req:Request,res:Response):Promise<any>=>{
         await registerPhone(phone_number_id,access_token);
         await subscribeWebhook(waba_id,access_token);
 
-        
+        await QuotaEngine.deductUsage({userId,featureSlug: 'whatsapp_agents',amount: 1,source: 'consumption',description: `Connected WhatsApp agent for WABA: ${waba_id}`});
         return res.status(200).send({status:true,message:"Connected!!"});
     }catch(err){
 

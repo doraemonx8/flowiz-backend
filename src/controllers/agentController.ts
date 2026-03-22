@@ -8,26 +8,30 @@ import {sendEmailReply, getSMTPHost} from "../utils/emailUtil";
 import {getEmailData} from "../models/emailModel";
 import { sendMessageFromMeta } from '../utils/meta';
 
+import QuotaEngine from '../utils/quotaEngine';
 
-const typeToHostMap : any={
-    "gmail":"smtp.gmail.com",
-    "outlook":"smtp.office365.com",
-    "zoho":"smtp.zoho.in"
-}
 
 const sendMessage=async(req:Request,res:Response) : Promise<any>=>{
     try{
         const {userId,companyId,message,chatId}=req.body;
         //middleware to verify if the user/agent belongs to same the company as the chat
-        if(! await checkCompanyForAgent(chatId,companyId)){
+        if(!await checkCompanyForAgent(chatId,companyId)){
             return res.status(400).send({status:false,message:"Agent not authorized for the given chat"});
         }
 
-        //getting type of channel
+        //getting type of channel - MongoDB
         const chat=await getChatData(chatId);
         if(!chat){
             return res.status(400).send({status:false,message:"Unable to find chat"});
         }
+
+        let featureSlug = 'chatbot_messages'; // Default to web chat
+        if (chat.channel === 'email') featureSlug = 'email_messages';
+        else if (chat.channel === 'whatsapp') featureSlug = 'whatsapp_messages';
+
+        const quotaResult = await QuotaEngine.checkQuota(userId, featureSlug);
+        
+        if (!quotaResult.allowed) {return res.status(429).send(QuotaEngine.formatQuotaError(quotaResult));}
 
         //EMAIL
         if(chat.channel==="email"){
@@ -43,9 +47,15 @@ const sendMessage=async(req:Request,res:Response) : Promise<any>=>{
             const subject=lastMessage.subject;
 
             const leadMail=await getLeadMail(chat.userId);
-            const userMail=chat.adminMail;
+            const userMailId=parseInt(chat.agentId);
 
-            const {password, type, host}=await getEmailData(userId,userMail as string);
+            // const {password, type, host, email}=await getEmailData(userId,userMailId);
+            const emailData = await getEmailData(userId, userMailId);
+            if(!emailData.password || !emailData.email){
+               return res.status(400).send({status:false,message:"Email account not found or invalid credentials"});
+            }
+            const {password, type, host, email} = emailData;
+
 
             if(!leadMail){
                 return res.status(400).send({status:false,message:"Lead not found"});
@@ -53,9 +63,11 @@ const sendMessage=async(req:Request,res:Response) : Promise<any>=>{
             //sending mail
             // const replyId=await sendGmailReply(userId,{from:userMail.userEmail,to:leadMail,subject,lastMessageId,body:message,threadId,references});
             const smtpHost = getSMTPHost(type as string, host as string);
-            const replyId=await sendEmailReply({host:smtpHost,userEmail:userMail,userPassword:password,from:userMail,to:leadMail,subject,body:message,lastMessageId,references})
+            const replyId=await sendEmailReply({host:smtpHost,userEmail:email,userPassword:password,from:email,to:leadMail,subject,body:message,lastMessageId,references})
+            if(!replyId){return res.status(500).send({status:false,message:"Failed to send email reply"});}
             //add message in chat
             await addMessage(chatId,{isBot:false,isAgent:true,subject,message,createdOn:new Date().getTime(),messageId:replyId});
+            await QuotaEngine.deductUsage({userId,featureSlug,amount: 1,source: 'consumption',description: `Agent replied via Email to chat: ${chatId}`});
             return res.status(200).send({status:true,message:"Email sent"});
         
         }else if(chat.channel == 'whatsapp'){ //WHATSAPP
@@ -65,6 +77,8 @@ const sendMessage=async(req:Request,res:Response) : Promise<any>=>{
             await sendMessageFromMeta(chat.adminId,chat.userPhone,message);
 
             await addMessage(chatId,{isBot:false,isAgent:true,message,createdOn:new Date().getTime()});
+
+            await QuotaEngine.deductUsage({userId,featureSlug,amount: 1,source: 'consumption',description: `Agent replied via WhatsApp to chat: ${chatId}`});
 
         }
 
@@ -77,6 +91,7 @@ const sendMessage=async(req:Request,res:Response) : Promise<any>=>{
         }
 
         await sendMessageToWebUser(flowId,{type:"agentMessage",message});
+        await QuotaEngine.deductUsage({userId,featureSlug,amount: 1,source: 'consumption',description: `Agent replied via Web Chat to chat: ${chatId}`});
         return res.status(200).send({status:true,message:"Message sent."});
     }catch(err){
 
@@ -98,8 +113,9 @@ const agentHandover=async(req:Request,res:Response) : Promise<any>=>{
 
             return res.status(400).send({status:false,message:"Agent not authorized for the given chat"});
         }
-
+        console.log("req.body in agent handover - ",req.body)
         const isAgentHandover =await handleAgentHandover(chatId,isHandover,userId);
+        console.log("IS AGENT HANDOVER - ",isAgentHandover)
 
         if(!isAgentHandover){
 

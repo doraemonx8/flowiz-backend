@@ -79,8 +79,8 @@ const campaignWorker = new Worker<CampaignJobData>("campaign-queue", async (job:
             await addJob(jobId as string, companyId, userId, subFlow.id, campaignId, id as string, "email");
             await emailQueue.add("email-job", payload, { jobId, delay: (leadCount - 1) * 1000 * 120 }); //default 2min delay for each mail
           } else {
-            const delayHour = Number(emailData.delay.hours);
-            const delayMin = Number(emailData.delay.mins);
+            const delayHour = Number(emailData.delay.hourDelay);
+            const delayMin = Number(emailData.delay.minDelay);
             // Calculate delay in milliseconds
             const delayInMs = (delayHour * 60 * 60 * 1000) + (delayMin * 60 * 1000) + ((leadCount - 1) * 1000 * 120);
 

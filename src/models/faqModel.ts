@@ -89,7 +89,7 @@ const deleteFAQDoc=async(userId:string,flowId:string,fileName:string)=>{
     }
 }
 
-const InsertFAQ=async(userId:string,flowId:string,vectorId:string,question:string,answer:string,subscriptionId:string,isFile:boolean=false)=>{
+const InsertFAQ=async(userId:string,flowId:string,vectorId:string,question:string,answer:string,isFile:boolean=false)=>{
     const t=await db.sequelize.transaction();
     try{
         
@@ -102,11 +102,11 @@ const InsertFAQ=async(userId:string,flowId:string,vectorId:string,question:strin
         );
 
 
-        await db.sequelize.query("INSERT INTO ledger (userId,subscriptionId,message,type) VALUES(:userId,:subscriptionId,'FAQ Added','faq')",{
-            replacements:{userId,subscriptionId},
-            transaction:t,
-            type:QueryTypes.INSERT
-        });
+        // await db.sequelize.query("INSERT INTO ledger (user_id,description,type) VALUES(:userId,'FAQ Added','faq')",{
+        //     replacements:{userId},
+        //     transaction:t,
+        //     type:QueryTypes.INSERT
+        // });
 
 
         await t.commit();

@@ -4,10 +4,7 @@ import { QueryTypes } from "sequelize";
 
 
 const checkCampaignCount=async(userId:string)=>{
-
-
     try{
-
         const data : {remainingCampaigns:number,usedCampaigns:number,subscriptionId:number}[]=await db.sequelize.query(`SELECT 
                         p.campaigns - COUNT(l.id) AS remainingCampaigns,
                         COUNT(l.id) AS usedCampaigns,
@@ -31,7 +28,6 @@ const checkCampaignCount=async(userId:string)=>{
         if(data.length && 'remainingCampaigns' in data[0] && data[0].remainingCampaigns>0){
             return {isAllowed:true,subscriptionId:data[0].subscriptionId};
         }
-
         return false;
     }catch(err){
         console.error(err);
@@ -41,9 +37,7 @@ const checkCampaignCount=async(userId:string)=>{
 
 
 const checkLeadCount=async(userId:string)=>{
-
     try{
-
         const data : {remainingLeads:number,usedLeads:number}[]=await db.sequelize.query(`
             SELECT p.leads - COUNT(l.id) as remainingLeads,COUNT(l.id) as usedLeads
             FROM subscriptions s
@@ -61,12 +55,9 @@ const checkLeadCount=async(userId:string)=>{
                 replacements:{userId},
                 type:QueryTypes.SELECT
             });
-
-
         if (data.length && "remainingLeads" in data[0] && data[0].remainingLeads>0){
             return true;
         }
-
         return false;
     }catch(err){
 
@@ -77,7 +68,6 @@ const checkLeadCount=async(userId:string)=>{
 
 const checkCrawlLeadCount=async(userId:string)=>{
     try{
-
         const data : {remainingCrawlLeads:number,usedCrawlLeads:number}[]=await db.sequelize.query(`
             SELECT p.crawlLeads - COUNT(l.id) as remainingCrawlLeads,COUNT(l.id) as usedCrawlLeads
             FROM subscriptions s
@@ -91,12 +81,9 @@ const checkCrawlLeadCount=async(userId:string)=>{
                 replacements:{userId},
                 type:QueryTypes.SELECT
             });
-
-
         if(data.length && "remainingCrawlLeads" in data[0] && data[0].remainingCrawlLeads>0){
             return true;
         }
-
         return false;
     }catch(err){
         console.error(err);
@@ -121,7 +108,6 @@ const checkFaqCount=async(userId:string)=>{
                 replacements:{userId},
                 type:QueryTypes.SELECT
             });
-
         if(data.length && 'remainingFaq' in data[0] && data[0].remainingFaq>0){
             return {isAllowed:true,subscriptionId:data[0].subscriptionId};
         }
@@ -131,7 +117,6 @@ const checkFaqCount=async(userId:string)=>{
         return false;
     }
 }
-
 
 const checkEmailCount=async(userId:string)=>{
     try{
@@ -149,12 +134,9 @@ const checkEmailCount=async(userId:string)=>{
                 replacements:{userId},
                 type:QueryTypes.SELECT
             });
-
-
             if(data.length && "remainingEmailAccounts" in data[0] && data[0].remainingEmailAccounts > 0){
                 return {isAllowed : true,subscriptionId:data[0].subscriptionId}
             }
-
             return false;
     }catch(err){
         console.error(err);
@@ -164,9 +146,7 @@ const checkEmailCount=async(userId:string)=>{
 
 
 const checkCrawl=async(userId:string)=>{
-
     try{
-
         const data=await db.sequelize.query(`
             SELECT p.crawlDepth FROM subscriptions s INNER JOIN plans p on p.id=s.planId WHERE s.userId=:userId AND s.isDeleted='0' AND s.isCancelled='0'
             AND (s.createdOn + INTERVAL p.duration MONTH) > CURRENT_TIMESTAMP`,{
@@ -177,7 +157,6 @@ const checkCrawl=async(userId:string)=>{
         if(data.length && 'crawlDepth' in data[0]){
             return data[0].crawlDepth;
         }
-
         return -1;
     }catch(err){
         console.error(err);
@@ -187,9 +166,7 @@ const checkCrawl=async(userId:string)=>{
 
 
 const checkMessageLimit=async(userId:string,type:string)=>{
-
     try{
-
         const data : {remainingMessage:number,subscriptionId:number}[]=await db.sequelize.query(`
             SElECT p.${type}-COUNT(l.id) as remainingMessage,COUNT(l.id) as usedMessage,s.id as subscriptionId FROM subscriptions s 
             INNER JOIN plans p on p.id=s.planId
@@ -200,7 +177,6 @@ const checkMessageLimit=async(userId:string,type:string)=>{
                 replacements:{userId},
                 type:QueryTypes.SELECT
             });
-
             if(data.length && "remainingMessage" in data[0] && "subscriptionId" in data[0] && data[0].remainingMessage > 0){
                 return {isAllowed:true,subscriptionId:data[0].subscriptionId};
             }

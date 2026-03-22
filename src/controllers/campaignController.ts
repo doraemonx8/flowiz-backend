@@ -6,11 +6,31 @@ import {updateCampaignStatus} from "../utils/redisUtil";
 import { getLeadConversionPerCampaign } from '../models/dashboardModel';
 import {calculateTimezoneDelay} from "../utils/timezoneUtil";
 
+import QuotaEngine from '../utils/quotaEngine';
 
 const scheduleCampaign=async(req:Request,res:Response):Promise<any>=>{
-
+    console.log("INSIDE SCHEDULE CAMPAIGN")
     try{
-        const {isEmailAgent,isCallAgent,isWhatsappAgent,isWebAgent,subFlows,campaignData,userId,template,campaignId,agents,scheduledAt,emailData,delay}=req.body;
+        const {isEmailAgent,isCallAgent,isWhatsappAgent,isWebAgent,subFlows,campaignData,template,campaignId,agents,scheduledAt,emailData,delay}=req.body;
+        const user = (req as any).user;
+        const userId = user.sub;
+        if (isEmailAgent) {
+            const emailQuota = await QuotaEngine.checkQuota(userId, 'email_agents');
+            console.log("EMAIL QUOTA",emailQuota)
+            if (!emailQuota.allowed) return res.status(429).send(QuotaEngine.formatQuotaError(emailQuota));
+        }
+        if (isCallAgent) {
+            const callQuota = await QuotaEngine.checkQuota(userId, 'call_agents');
+            if (!callQuota.allowed) return res.status(429).send(QuotaEngine.formatQuotaError(callQuota));
+        }
+        if (isWhatsappAgent) {
+            const waQuota = await QuotaEngine.checkQuota(userId, 'whatsapp_agents');
+            if (!waQuota.allowed) return res.status(429).send(QuotaEngine.formatQuotaError(waQuota));;
+        }
+        if (isWebAgent) {
+            const webQuota = await QuotaEngine.checkQuota(userId, 'chatbot_agents');
+            if (!webQuota.allowed) return res.status(429).send(QuotaEngine.formatQuotaError(webQuota));
+        }
 
         if(template && template!=0){
             //saving template Data
@@ -18,6 +38,7 @@ const scheduleCampaign=async(req:Request,res:Response):Promise<any>=>{
         }
 
         if(isWebAgent && agents.length==1){
+            await QuotaEngine.deductUsage({userId,featureSlug: 'campaigns',amount: 1,source: 'consumption',description: `Scheduled web campaign: ${campaignId || campaignData[0]?.name || 'Unknown'}`});
             return res.status(200).send({status:true,message:"Campaign completed since web bot!!"});
         }
         
@@ -34,11 +55,20 @@ const scheduleCampaign=async(req:Request,res:Response):Promise<any>=>{
         campaignData[0].userEmailData=isEmailAgent ? emailData : [];
         campaignData[0].delay=delay;
 
+        const schedulingQuota = await QuotaEngine.checkQuota(userId, 'scheduling');
+        console.log("SCHEDULE QUOTA - ", schedulingQuota)
+        if (!schedulingQuota.allowed) {
+            console.log("SCHEDULING QUOTA ALLOWED -",schedulingQuota.allowed)
+            return res.status(429).send(QuotaEngine.formatQuotaError(schedulingQuota));
+        }
+
         const isScheduled=await scheduleCampaignUtil(campaignData[0]);
 
         if(!isScheduled.status){
             return res.status(400).send({status:false,message:isScheduled.message});
         }
+        await QuotaEngine.deductUsage({ userId, featureSlug: 'scheduling', amount: 1, source: 'consumption', description: `Used scheduling for web campaign: ${campaignId || campaignData[0]?.name || 'Unknown'}` });
+        await QuotaEngine.deductUsage({userId,featureSlug: 'campaigns',amount: 1,source: 'consumption',description: `Scheduled campaign: ${campaignId || campaignData[0].name || 'Unknown'}`});
         return res.status(200).send({status : true,data:campaignData[0],message:isScheduled.message});
     }catch(err){
         console.error(`An error occured while scheduling campaign : ${err}`);
@@ -51,13 +81,14 @@ const pauseCampaign=async(req:Request,res:Response):Promise<any>=>{
 
     try{
 
-        const {slug,userId}=req.body;
+        const user = (req as any).user;
+        const userId = user.sub;
+        const {slug}=req.body;
         const campaigns = await getCampaignIdBySlug(slug, userId);
 
         const campaignId = campaigns?.[0]?.id;
 
-       if (!campaignId) {
-
+        if (!campaignId) {
             return res.status(400).send({status:false,message:"No campaign found"})
         }
 
@@ -83,13 +114,14 @@ const resumeCampaign=async(req:Request,res:Response):Promise<any>=>{
 
     try{
 
-         const {slug,userId}=req.body;
+        const user = (req as any).user;
+        const userId = user.sub;
+        const {slug}=req.body;
         const campaigns = await getCampaignIdBySlug(slug, userId);
 
         const campaignId = campaigns?.[0]?.id;
 
         if (!campaignId) {
-
             return res.status(400).send({status:false,message:"No campaign found"})
         }
 
@@ -115,7 +147,18 @@ const cancelCampaign=async(req:Request,res:Response):Promise<any>=>{
 
     try{
 
-        const {campaignId}=req.body;
+        // const {campaignId}=req.body;
+        // slug
+        const user = (req as any).user;
+        const userId = user.sub;
+        const {slug}=req.body;
+        const campaigns = await getCampaignIdBySlug(slug, userId);
+
+        const campaignId = campaigns?.[0]?.id;
+
+        if (!campaignId) {
+            return res.status(400).send({status:false,message:"No campaign found"})
+        }
 
         const isCancelled=await updateCampaignStatus(campaignId,'cancelled') && await deleteCampaignJobs(campaignId);
 
@@ -141,10 +184,13 @@ const getProgress=async(req:Request,res:Response):Promise<any>=>{
 
     try{
 
-        const campaignId = String(req.query.campaignId);
+        const user = (req as any).user;
+        const userId = user.sub;
+        const {slug}=req.body;
+        const campaigns = await getCampaignIdBySlug(slug, userId);
+        const campaignId = campaigns?.[0]?.id;
 
         if(!campaignId){
-
             return res.status(400).send({status:false,message:"Campaign Id is required"});
         }
 
@@ -181,8 +227,12 @@ const getCampaignResult=async(req:Request,res:Response):Promise<any>=>{
 
     try{
 
-        const {userId,companyId}=req.body;
-        const {slug}=req.query;
+        const user = (req as any).user;
+        const userId = user.sub;
+        const {slug}=req.body;
+
+        // const {userId,companyId}=req.body;
+        // const {slug}=req.query;
 
         const flowId=await getFlowIdBySlug(slug as string,userId);
 
@@ -218,7 +268,9 @@ const getCampaignResult=async(req:Request,res:Response):Promise<any>=>{
 
 const getCampaigns=async(req:Request,res:Response) : Promise<any>=>{
     try{
-        const {userId}=req.body;
+        // const {userId}=req.body;
+        const user = (req as any).user;
+        const userId = user.sub;
         const campaigns :any =await getAllCampaigns(userId);
         const data: any[]=[];
         if(!campaigns.length){
@@ -253,9 +305,16 @@ const deleteCampaign=async(req:Request,res:Response):Promise<any>=>{
 
     try{
 
-        const {userId,id}=req.body;
+        const user = (req as any).user;
+        const userId = user.sub;
 
-        const isDeleted=await deleteCampaignDB(userId,id) && await deleteCampaignJobs(id);
+        const campaignId = req.body.id as string;
+
+        if (!campaignId) {
+            return res.status(400).send({status:false,message:"No campaign found"})
+        }
+
+        const isDeleted=await deleteCampaignDB(userId,campaignId) && await deleteCampaignJobs(campaignId);
 
         if(!isDeleted){
             return res.status(400).send({status:false,message:"Could not delete"});
@@ -275,12 +334,12 @@ const editCampaignName=async(req:Request,res:Response):Promise<any>=>{
 
     try{
 
-        const {userId,id,name}=req.body;
-
+        const {id,name}=req.body;
+        const user = (req as any).user;
+        const userId = user.sub;
         const isEdited=await editCampaignNameDB(userId,id,name);
 
         if(!isEdited){
-
             return res.status(400).send({status:false,message:"Invalid campaign ID"});
         }
 

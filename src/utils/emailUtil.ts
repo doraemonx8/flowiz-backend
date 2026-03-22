@@ -4,6 +4,7 @@ import { inboxQueue, emailQueue } from '../queues/campaignQueue';
 import inboxWorker from '../workers/inboxWorker';
 
 import validate from 'deep-email-validator';
+import { QuotaEngine } from './quotaEngine';
 const temp_inbox_worker=inboxWorker;
 
 interface SendEmailInterface{
@@ -114,7 +115,6 @@ const sendEmailReply=async(params:Record<string,any>)=>{
       references:params.references
     };
     
-
     const info=await transporter.sendMail(mailOptions);
     console.log("Reply sent : %s",info.messageId);
     return info.messageId;
@@ -127,7 +127,7 @@ const sendEmailReply=async(params:Record<string,any>)=>{
 
 
 
-const verifyEmail=async(params:SendEmailInterface,userId:string,subscriptionId:string)=>{
+const verifyEmail=async(params:SendEmailInterface,userId:string)=>{
   try{
     const {isSent,messageId}=await sendEmail(params);
     //updating status in DB
@@ -135,7 +135,8 @@ const verifyEmail=async(params:SendEmailInterface,userId:string,subscriptionId:s
       const curr=new Date();
       const numberToMonth=["Jan","Feb","Mar","Apr","May","Jun","July","Aug","Sep","Oct","Nov","Dec"];
       const date=`${curr.getDate()}-${numberToMonth[curr.getMonth()]}-${curr.getFullYear()}`;
-      await updateEmailData({status:"1",history:date},userId,params.userEmail,subscriptionId);
+      await updateEmailData({status:"1",history:date},userId,params.userEmail);
+
       //once verified then start watching inbox // need to check since this should be done post campaign start
       await inboxQueue.add('inbox-job',
         {
@@ -153,9 +154,11 @@ const verifyEmail=async(params:SendEmailInterface,userId:string,subscriptionId:s
           }
         }
       );
+      // Deduct quota after email is verified/sent
+      await QuotaEngine.deductUsage({userId: parseInt(userId),featureSlug: 'email_accounts', amount: 1, source: 'consumption', description: `Added email account: ${params.userEmail}`});
 
     }else{
-      await updateEmailData({status:"2"},userId,params.userEmail,subscriptionId);
+      await updateEmailData({status:"2"},userId,params.userEmail);
     }
     return true;
   }catch(err){

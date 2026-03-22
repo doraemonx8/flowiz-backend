@@ -276,11 +276,7 @@ WHERE
 const deleteMailDB=async(email:string,userId:string)=>{
   try{
     await db.sequelize.query("UPDATE emails SET isDeleted='1' WHERE email=:email AND userId=:userId",
-      {
-        replacements:{userId,email},
-        type:QueryTypes.UPDATE
-      }
-    )
+      {replacements:{userId,email},type:QueryTypes.UPDATE})
     return true;
   }catch(err){
     console.error(err);
@@ -289,27 +285,13 @@ const deleteMailDB=async(email:string,userId:string)=>{
 }
 
 
-const updateEmailData=async(params:Record<string,string>,userId:string,email:string,subscriptionId:string | null =null )=>{
+const updateEmailData=async(params:Record<string,string>,userId:string,email:string | null =null )=>{
   const t=await db.sequelize.transaction();
   try{
     const query=Object.keys(params).map((key : string)=> `${key} =:${key}`).join(",");
     await db.sequelize.query(`UPDATE emails SET ${query} WHERE userId=:userId AND emails.email=:email AND emails.isDeleted='0' `,
-      {
-        replacements:{...params,userId,email},
-        type:QueryTypes.UPDATE
-      }
+      {replacements:{...params,userId,email},type:QueryTypes.UPDATE}
     )
-
-    if(params.status==='1'){ //adding in ledger only when email has been verified
-        await db.sequelize.query("INSERT INTO ledger (userId,subscriptionId,message,type) VALUES(:userId,:subscriptionId,'Email account added','emailAccount')",
-        {
-          replacements:{userId,subscriptionId},
-          transaction:t,
-          type:QueryTypes.INSERT
-        }
-      )
-    }
-
     await t.commit();
     return true;
   }catch(err){
@@ -319,16 +301,16 @@ const updateEmailData=async(params:Record<string,string>,userId:string,email:str
   }
 }
 
-const getEmailData=async(userId:string,email:string)=>{
+const getEmailData=async(userId:number,emailId:number)=>{
   try{
-    const res=await db.sequelize.query("SELECT password,type,host FROM emails WHERE userId=:userId AND email=:email AND isDeleted='0'",
+    const res=await db.sequelize.query("SELECT password,type,host,email FROM emails WHERE userId=:userId AND id=:emailId AND isDeleted='0'",
       {
-        replacements:{userId,email},
+        replacements:{userId,emailId},
         type:QueryTypes.SELECT
       }
     );
-    if(res.length && 'password' in res[0] && 'type' in res[0] && 'host' in res[0]){
-      return {password:res[0].password, type:res[0].type, host:res[0].host};
+    if(res.length && 'password' in res[0] && 'type' in res[0] && 'host' in res[0] && 'email' in res[0]){
+      return {password:res[0].password, type:res[0].type, host:res[0].host, email:res[0].email};
     }
     return {};
   }catch(err){

@@ -10,7 +10,7 @@ import {getFAQ,getFaqById,deleteFAQById,updateFAQById,InsertFAQ,deleteFAQDoc} fr
 import pdf from 'pdf-parse';
 import fs from "fs/promises";
 
-
+import QuotaEngine from '../utils/quotaEngine';
 
 const addFAQByDoc=async (req : Request, res : Response):Promise<any>=>{
     try {
@@ -41,8 +41,9 @@ const addFAQByDoc=async (req : Request, res : Response):Promise<any>=>{
         if(data.text.length > 10000){
             return res.status(400).send({status:false,message:"File text too large. Pls try with smaller files"});
         }
-
         
+        const kbSize = Math.max(1, Math.ceil(data.text.length / 1024));
+
         const doc = [{ pageContent: data.text, metadata: { flowId,fileName } }];
 
         const textSplitter = new RecursiveCharacterTextSplitter({
@@ -65,7 +66,8 @@ const addFAQByDoc=async (req : Request, res : Response):Promise<any>=>{
       console.log("res =>",pinecone_res);
 
       //saving in flow
-      await InsertFAQ(userId,flowId as string,fileName as string,fileName as string,data.text,subscriptionId,true);
+      await InsertFAQ(userId,flowId as string,fileName as string,fileName as string,data.text,true);
+      await QuotaEngine.deductUsage({userId,featureSlug: 'kb_file_length',amount: kbSize,source: 'consumption',description: `Added FAQ Doc: ${fileName} (${kbSize} KB)`});
         res.json({ name: req.file.filename,text:data.text, message:'doc added successfully' });
     } catch (err) {
         console.error(err); // Log the error for debugging
@@ -122,6 +124,7 @@ const addFaq=async(req:Request,res:Response):Promise<any>=>{
         const {userId,faqArray,subscriptionId}=req.body;
 
         let flowId : string | any;
+        let count = 0;
 
         for (const faq of faqArray){
 
@@ -158,7 +161,7 @@ const addFaq=async(req:Request,res:Response):Promise<any>=>{
                 }
             ]);
 
-            await InsertFAQ(userId,flowId as string,faqId,faq.question,faq.answer,subscriptionId);
+            await InsertFAQ(userId,flowId as string,faqId,faq.question,faq.answer);
 
 
             }
@@ -193,8 +196,11 @@ const addFaq=async(req:Request,res:Response):Promise<any>=>{
 
                 await updateFAQById(userId,faq.faqId,faq.question,faq.answer);
             }
+            count++;
         }
-        
+    
+        await QuotaEngine.deductUsage({userId,featureSlug: 'kb_faq',amount: count,source: 'consumption',description: `Added manual FAQs (${count})`});
+    
       return res.status(200).send({status:true,message:"FAQ's added/updated"});
 
     }catch(err){

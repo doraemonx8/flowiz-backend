@@ -3,6 +3,8 @@ import {type Request,type Response} from 'express';
 import { saveLeads,transferLeadsFromMaster,checkAudience } from '../models/leadModel';
 import { getCampaignIdBySlug, saveKeywords } from '../models/campaignModel';
 
+import QuotaEngine from '../utils/quotaEngine';
+
 const getLeadsFromGoogle=async(req:Request,res:Response):Promise<any>=>{
 
     try{
@@ -17,7 +19,6 @@ const getLeadsFromGoogle=async(req:Request,res:Response):Promise<any>=>{
         if (!campaignId) {
            return res.status(401).send({status:false,message:"Not authorised to schedule this campaign"});
         }
-  
 
         //saving crawled keywords in campaigns
         const keywordId=await saveKeywords(campaignId,query as string,userId);
@@ -124,7 +125,15 @@ const getMasterLeadsFromGoogle=async(req:Request,res:Response):Promise<any>=>{
             }
            
         };
-        
+        const quotaResult = await QuotaEngine.checkQuota(userId, "leads");
+        if (placeDetails.length > quotaResult.remaining) {
+            placeDetails = placeDetails.slice(0, quotaResult.remaining);
+        }
+
+        if (placeDetails.length === 0) {
+            return res.status(400).send({ status: false, message: "No valid leads found or quota fully exhausted." });
+        }
+
         //saving leads
         const audienceId=await saveLeads(placeDetails,companyId,query as string,userId);
 
@@ -134,6 +143,8 @@ const getMasterLeadsFromGoogle=async(req:Request,res:Response):Promise<any>=>{
         if(!audienceId){
             return res.status(500).send({status:false,message:"Could not save leads"});
         }
+
+        await QuotaEngine.deductUsage({userId,featureSlug: 'leads',amount: placeDetails.length,source: 'consumption',description: `Crawled ${placeDetails.length} master leads for query: ${query}`});
         
         return res.status(200).send({status:true,message :`Leads crawled & saved for audience : ${query}`,audienceId});
     }catch(err){

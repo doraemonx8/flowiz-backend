@@ -26,41 +26,56 @@ function buildEmailSequence(nodes: EmailNode[], leadName: string) {
   let hourDelay = 0;
   let minDelay = 0;
   let count = 0;
+  if (!current) return [];
+  const { data, id } = current as EmailNode;
+  console.log("CURRENT UNDER CHANNELWORKERUTILS - ", current);
+  const scheduledFollowUps = scheduleMessages({ currentNodeId: id, flowData: nodes }, "email").map((job: any) => ({
+    ...job,
+    subject: job.subject?.replaceAll("{{lead_name}}", leadName),
+    body: job.body?.replaceAll("{{lead_name}}", leadName)
+  }));
 
-  const {data,id}=current as EmailNode;
-    return [
-      {
-        id,
-        subject : data.subject.replaceAll("{{lead_name",leadName),
-        body: data.subject.replaceAll("{{lead_name",leadName)
-      },...scheduleMessages({currentNodeId : id,flowData:nodes},"email")
-    ]
+  return [
+    {
+      id,
+      subject: data.subject.replaceAll("{{lead_name}}", leadName),
+      body: data.body.replaceAll("{{lead_name}}", leadName)
+    },
+    ...scheduledFollowUps
+  ];
+  // return [
+  //   {
+  //     id,
+  //     subject : data.subject.replaceAll("{{lead_name}}",leadName),
+  //     body: data.body.replaceAll("{{lead_name}}",leadName)
+  //   },...scheduleMessages({currentNodeId : id,flowData:nodes},"email")
+  // ]
+  //  to be reviewed later
+  // while (current) {
+  //   const { data, next, type, id } = current;
 
-  while (current) {
-    const { data, next, type, id } = current;
-
-    if (type === "delayNode") {
-      lastDelay = { hours: data.hourDelay, mins: data.minDelay };
-      hourDelay += parseInt(data?.hourDelay as string);
-      minDelay += parseInt(data?.minDelay as string);
-    } else if (data.subject && data.body) {
-      hourDelay += count === 0 ? 0 : 24;  //default 24.5 hour delay
-      minDelay += count === 0 ? 0 : 30
-      // const name=leadName ? leadName.split(" ")[0] : "";
-      const email = {
-        id,
-        subject: data.subject.replaceAll("{{lead_name}}", leadName),
-        body: data.body.replaceAll("{{lead_name}}", leadName),
-        ...(lastDelay ? { delay: { hours: hourDelay, mins: minDelay } } : { delay: { hours: hourDelay, mins: minDelay } }),
-      };
-      sequence.push(email);
-      lastDelay = null;
-    }
-    count += 1;
-    const nextId = next && next.length > 0 ? next[0] : undefined;
-    current = nextId ? nodeMap.get(nextId) : undefined;
-  }
-  return sequence;
+  //   if (type === "delayNode") {
+  //     lastDelay = { hours: data.hourDelay, mins: data.minDelay };
+  //     hourDelay += parseInt(data?.hourDelay as string);
+  //     minDelay += parseInt(data?.minDelay as string);
+  //   } else if (data.subject && data.body) {
+  //     hourDelay += count === 0 ? 0 : 24;  //default 24.5 hour delay
+  //     minDelay += count === 0 ? 0 : 30
+  //     // const name=leadName ? leadName.split(" ")[0] : "";
+  //     const email = {
+  //       id,
+  //       subject: data.subject.replaceAll("{{lead_name}}", leadName),
+  //       body: data.body.replaceAll("{{lead_name}}", leadName),
+  //       ...(lastDelay ? { delay: { hours: hourDelay, mins: minDelay } } : { delay: { hours: hourDelay, mins: minDelay } }),
+  //     };
+  //     sequence.push(email);
+  //     lastDelay = null;
+  //   }
+  //   count += 1;
+  //   const nextId = next && next.length > 0 ? next[0] : undefined;
+  //   current = nextId ? nodeMap.get(nextId) : undefined;
+  // }
+  // return sequence;
 }
 const createEmailJobsDataFromFlow = (subFlow: any, leadName: string) => {
   try {
@@ -69,13 +84,25 @@ const createEmailJobsDataFromFlow = (subFlow: any, leadName: string) => {
     if (isJsonData) {
 
       //only first email needs to be sent
-      const emailData=subFlow.json[0];
-      return [{
+      console.log("SubFlow UNDER CHANNELWORKERUTILS - ", subFlow)
+      const emailData = subFlow.json[0];
+      const scheduledFollowUps = scheduleMessages({ currentNodeId: emailData.id, flowData: subFlow.json }, "email").map((job: any) => ({
+        ...job,
+        subject: job.subject?.replaceAll("{{lead_name}}", leadName),
+        body: job.body?.replaceAll("{{lead_name}}", leadName)
+      }));
 
-        id : 0,
-        subject : emailData.subject.replaceAll("{{lead_name}}",leadName),
-        body: emailData.body.replaceAll("{{lead_name}}",leadName)
-      },...scheduleMessages({currentNodeId : 0,flowData:subFlow.json},"email")];
+      return [{
+        id: emailData.id,
+        subject: emailData.subject.replaceAll("{{lead_name}}", leadName),
+        body: emailData.body.replaceAll("{{lead_name}}", leadName)
+      }, ...scheduledFollowUps];
+      // return [{
+
+      //   id : 0,
+      //   subject : emailData.subject.replaceAll("{{lead_name}}",leadName),
+      //   body: emailData.body.replaceAll("{{lead_name}}",leadName)
+      // },...scheduleMessages({currentNodeId : 0,flowData:subFlow.json},"email")];
       let hourDelay = 0;
       let minDelay = 0;
       const data = subFlow.json.map((item: any, index: number) => {
@@ -152,7 +179,6 @@ const createJobsFromFlow = (flow: any) => {
 
 
   } catch (err) {
-
     console.error("an error occured while creating whatsapp jobs", err);
     return [];
   }

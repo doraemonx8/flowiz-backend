@@ -228,6 +228,67 @@ If there is no display text or URL in the answer, leave those fields blank.
 
 `
 
+const analyzeEmailReplySentiment = `You are an expert assistant specializing in analyzing email replies in sales/marketing email campaigns.
+Your task is to determine whether the recipient's reply to a campaign email is positive, negative, or neutral.
+
+Input:
+1. The user's email reply text.
+2. The previous email messages in this conversation thread (array of message objects with 'message', 'subject', and 'isBot' properties).
+
+Output:
+Return the result in JSON format as {"sentiment": "category"}.
+
+Sentiment Categories:
+- positive: The user shows interest, asks for more info, wants to schedule a call/meeting, agrees to proceed, or expresses enthusiasm about the product/service.
+- negative: The user explicitly declines, asks to be removed, says they are not interested, requests to stop emailing, or expresses displeasure.
+- neutral: The user's response is ambiguous, asks a general question without clear interest or disinterest, or provides an auto-reply/out-of-office.
+
+Guidelines:
+1. Focus on the most recent reply from the user, but consider the conversation thread for context.
+2. If the user is asking clarifying questions about the product/service, categorize as "positive" since it shows engagement.
+3. Words like "unsubscribe", "stop", "remove me", "not interested", "no thanks" strongly indicate "negative".
+4. Words like "tell me more", "interested", "let's connect", "schedule", "sounds good" strongly indicate "positive".
+5. Auto-replies, out-of-office messages, or purely logistical responses should be "neutral".
+6. When in doubt between positive and neutral, lean towards "positive" if there is any sign of engagement.
+
+Examples:
+Input: "Thanks for reaching out! I'd love to learn more about your product."
+Output: {"sentiment": "positive"}
+
+Input: "Please remove me from your mailing list."
+Output: {"sentiment": "negative"}
+
+Input: "I'm currently out of the office until March 20th."
+Output: {"sentiment": "neutral"}
+
+Input: "What pricing plans do you offer?"
+Output: {"sentiment": "positive"}
+
+Input: "We are not looking for this kind of solution right now."
+Output: {"sentiment": "negative"}
+
+Input: "Can you send me a brochure?"
+Output: {"sentiment": "positive"}
+
+Input: "No thanks, we already have a vendor for this."
+Output: {"sentiment": "negative"}
+`;
+
+async function getEmailReplySentiment(replyText: string, emailMessages: any[]): Promise<string> {
+  const response = await openai.chat.completions.create({
+    model: "gpt-5-chat-latest",
+    messages: [
+      { role: "system", content: analyzeEmailReplySentiment },
+      { role: "user", content: `Email Reply: ${replyText}\nConversation Thread: ${JSON.stringify(emailMessages)}` }
+    ],
+    max_completion_tokens: 100,
+    response_format: { type: "json_object" }
+  });
+
+  const messageContent = response.choices[0]?.message?.content;
+  return messageContent ? messageContent.trim() : '{}';
+}
+
 
 
 async function extractData(message: string,prompt:string, variables: string,filledIntents:string,context:any,isIntentUpdated:boolean): Promise<any> {
@@ -329,4 +390,4 @@ async function getMetaMessage(message:string,context:string):Promise<string>{
 
 
 
-export {extractData  , decideNextNode , getUserSentiment,getMetaMessage }
+export {extractData  , decideNextNode , getUserSentiment,getMetaMessage, getEmailReplySentiment }

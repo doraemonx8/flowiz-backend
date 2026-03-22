@@ -30,6 +30,10 @@ const emailWorker=new Worker('email-queue',async(job :any)=>{
         console.log(`Email limit reached for today. Skipping: ${job.data.email}`);
         return;
     }
+    if (!campaignId) {
+        console.warn(`Job ${job.id} has no campaignId, skipping status check`);
+    }
+
 
     const status=await getCampaignStatus(campaignId);
     if(status==='paused'){
@@ -53,20 +57,21 @@ const emailWorker=new Worker('email-queue',async(job :any)=>{
         throw new Error(`Could not sent mail to ${email} : ${messageId}`);
     }    
     console.log("email sent to : ",job.data.email);
-    // await incrementQuota('email');
+    await incrementQuota('email');
     
     //checking if chat exists
     const chatId=await isEmailChatPresent(userId,leadId,companyId,flowId);
     if(!chatId){ //creating new chat
           const data={
         _id:Math.floor(10000000 + Math.random() * 90000000).toString(),
+        campaignId,
         companyId,
         flowId,
         flowData:JSON.stringify(flowData),
         emailAuth:JSON.stringify(userEmailData),
         userId:leadId,
         adminId:userId,
-        adminMail:userEmailData.userEmail,
+        agentId:userEmailData.id,
         channel:'email',
         currentFlowNodeId:nodeId,
         intents:{},
@@ -146,7 +151,8 @@ const whatsappWorker=new Worker('whatsapp-queue',async(job : any)=>{
 
     //updating in mongodb
       const data = {
-            _id: Math.floor(10000000 + Math.random() * 90000000).toString(),                    
+            _id: Math.floor(10000000 + Math.random() * 90000000).toString(),  
+            campaignId,                  
             companyId,       
             userId:leadId,
             adminId:userId,
