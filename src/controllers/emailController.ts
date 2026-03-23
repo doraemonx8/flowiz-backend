@@ -48,19 +48,19 @@ const getAllEmails = async (req: Request, res: Response): Promise<any> => {
     }
 }
 
-
 const saveEmail = async (req: Request, res: Response): Promise<any> => {
     try{
         const {userId,email,type,password,subscriptionId,host}=req.body;
+        const encryptedPassword = encryptId(password);
         // host is required only if type is 'custom'
         if(type === 'custom' && !host){
             return res.status(400).send({status:false,message:"Host is required for custom email type"});
         }
         
-        const { status, message } = await insertEmail(userId, type, email, password, type === 'custom' ? host : undefined);
+        const { status, message } = await insertEmail(userId, type, email, encryptedPassword, type === 'custom' ? host : undefined);
         if(status){
             const smtpHost = getSMTPHost(type, host);
-            verifyEmail({host:smtpHost,userEmail:email,userPassword:password,from:email,to:"rahul.solanki@cybernauts.in",subject:"Email Activation",body:"Hey, Email sent before adding"},userId);
+            verifyEmail({host:smtpHost,userEmail:email,userPassword:password,from:email,to:"aayush.chouhan@cybernauts.in",subject:"Email Activation",body:"Hey, Email sent before adding"},userId);
             return res.status(200).send({ status, message });
         }else{
             return res.status(400).send({ status, message });

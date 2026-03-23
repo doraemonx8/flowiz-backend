@@ -1,6 +1,7 @@
 import db from "../models/conn";
 import { QueryTypes } from 'sequelize';
 import Chat from "./schema";
+import { decryptId } from "../utils/encryptDecrypt";
 
 
 const saveEmail = async (userId: string,type: string,email:string): Promise<boolean> => {
@@ -310,7 +311,8 @@ const getEmailData=async(userId:number,emailId:number)=>{
       }
     );
     if(res.length && 'password' in res[0] && 'type' in res[0] && 'host' in res[0] && 'email' in res[0]){
-      return {password:res[0].password, type:res[0].type, host:res[0].host, email:res[0].email};
+      const decryptedPassword = decryptId(res[0].password as string);
+      return {password:decryptedPassword, type:res[0].type, host:res[0].host, email:res[0].email};
     }
     return {};
   }catch(err){
