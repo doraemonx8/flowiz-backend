@@ -43,11 +43,11 @@ const inboxWorker = new Worker('inbox-queue', async (job: any) => {
     try {
         let historyDate: string | null = null;
         const history = await getEmailHistory(userId, email);
-        if(!history){
-            console.warn("No history found for email : ",email);
-            return { skipped: true, reason: 'Already processing' };
-        }
-
+        // if(!history){
+        //     console.warn("No history found for email : ",email);
+        //     return { skipped: true, reason: 'Already processing' };
+        // }
+        const effectiveHistory = history || getCurrentDate();
         const imapHost = getIMAPHost(host as string);
         const imap = new Imap({
             user: email,
@@ -68,7 +68,7 @@ const inboxWorker = new Worker('inbox-queue', async (job: any) => {
                         return reject(new Error(`Failed to open inbox: ${err.message}`));
                     }
 
-                    const searchCriteria = ['UNSEEN',['SINCE', history]];
+                    const searchCriteria = ['UNSEEN',['SINCE', effectiveHistory]];
                     imap.search(searchCriteria, async(err, results) => {
                         if (err) {
                             imap.end();
@@ -382,7 +382,7 @@ const sendNextMail = async (chat: any, email: string, replyText: string) => {
             ...basePayload,
             subject: emailJob.subject as string,
             body:    emailJob.body    as string,
-            nodeId:  followUpJobId,
+            nodeId:  targetNodeId,
         }, { delay: delayInMs, jobId: followUpJobId });
 
         await addJob(followUpJobId, companyId, adminId, flowId, campaignId, leadId, "email");
