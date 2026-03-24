@@ -373,9 +373,10 @@ const sendNextMail = async (chat: any, email: string, replyText: string) => {
     );
 
     for (const emailJob of followUpsToSchedule) {
-        const delayInMs =
-            (Number(emailJob.delay?.hourDelay) * 60 * 60 * 1000) +
-            (Number(emailJob.delay?.minDelay)  * 60 * 1000);
+        // const delayInMs =
+        //     (Number(emailJob.delay?.hourDelay) * 60 * 60 * 1000) +
+        //     (Number(emailJob.delay?.minDelay)  * 60 * 1000);
+        const delayInMs = 2 * 60 * 1000; // force 2 min for testing
 
         const followUpJobId = `${Date.now()}_email_followup_${targetNodeId}`;
         await emailQueue.add("email-job", {

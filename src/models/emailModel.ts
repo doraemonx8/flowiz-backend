@@ -302,24 +302,33 @@ const updateEmailData=async(params:Record<string,string>,userId:string,email:str
   }
 }
 
-const getEmailData=async(userId:number,emailId:number)=>{
-  try{
-    const res=await db.sequelize.query("SELECT password,type,host,email FROM emails WHERE userId=:userId AND id=:emailId AND isDeleted='0'",
-      {
-        replacements:{userId,emailId},
-        type:QueryTypes.SELECT
-      }
+const getEmailData = async (userId: number, emailId: number) => {
+  try {
+    const res = await db.sequelize.query(
+      "SELECT password, type, host, email FROM emails WHERE userId=:userId AND id=:emailId AND isDeleted='0'",
+      { replacements: { userId, emailId }, type: QueryTypes.SELECT }
     );
     if(res.length && 'password' in res[0] && 'type' in res[0] && 'host' in res[0] && 'email' in res[0]){
-      const decryptedPassword = decryptId(res[0].password as string);
+      const raw = res[0].password as string;
+      let decryptedPassword: string | null = null;
+
+      // Only attempt decryption if the string looks like our cipher output
+      // (hex IV prefix = 32 chars + at least some cipher text)
+      if (raw && raw.length > 32) {
+        decryptedPassword = decryptId(raw);
+      } else {
+        // Stored as plain text (legacy record)
+        decryptedPassword = raw;
+      }
+
       return {password:decryptedPassword, type:res[0].type, host:res[0].host, email:res[0].email};
     }
     return {};
-  }catch(err){
+  } catch (err) {
     console.error(err);
     return {};
   }
-}
+};
 
 const getAllVerifiedEmails=async(userId:string,emailIds:string="")=>{
   try{
