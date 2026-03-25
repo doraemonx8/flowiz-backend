@@ -35,11 +35,16 @@ const sendMessage=async(req:Request,res:Response) : Promise<any>=>{
 
         //EMAIL
         if(chat.channel==="email"){
-            const lastMessage=chat.messages.reverse()[0];
+            // const lastMessage=chat.messages.reverse()[0];
+            const lastMessage = chat.messages[chat.messages.length - 1];
             let references="";
 
             if(!lastMessage.isAgent && !lastMessage.isBot){ //replying to a user's email
                 references=chat.messages.map((message)=> message.messageId).join(" ");
+            }
+
+            if (!chat.messages || chat.messages.length === 0) {
+                return res.status(400).send({ status: false, message: "No messages found in chat" });
             }
 
             // const threadId=chat.threadId;
@@ -48,10 +53,13 @@ const sendMessage=async(req:Request,res:Response) : Promise<any>=>{
 
             const leadMail=await getLeadMail(chat.userId);
             const userMailId=parseInt(chat.agentId);
+            if (isNaN(userMailId)) {
+                return res.status(400).send({ status: false, message: "Invalid agent ID" });
+            }
 
             // const {password, type, host, email}=await getEmailData(userId,userMailId);
             const emailData = await getEmailData(userId, userMailId);
-            if(!emailData.password || !emailData.email){
+            if (!emailData || !emailData.password || !emailData.email) {
                return res.status(400).send({status:false,message:"Email account not found or invalid credentials"});
             }
             const {password, type, host, email} = emailData;
@@ -74,12 +82,16 @@ const sendMessage=async(req:Request,res:Response) : Promise<any>=>{
 
             console.log("sending message from whatsapp : ",message);
 
-            await sendMessageFromMeta(chat.adminId,chat.userPhone,message);
+            // await sendMessageFromMeta(chat.adminId,chat.userPhone,message);
+            try {
+                await sendMessageFromMeta(chat.adminId,chat.userPhone,message);
+            } catch (e) {
+                return res.status(500).send({ status: false, message: "WhatsApp send failed" });
+            }
 
             await addMessage(chatId,{isBot:false,isAgent:true,message,createdOn:new Date().getTime()});
-
             await QuotaEngine.deductUsage({userId,featureSlug,amount: 1,source: 'consumption',description: `Agent replied via WhatsApp to chat: ${chatId}`});
-
+            return res.status(200).send({ status: true, message: "WhatsApp message sent" });
         }
 
         

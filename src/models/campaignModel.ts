@@ -180,14 +180,14 @@ const createCampaign=async(userId:string,companyId:string,flowId:string,name:str
   }
 );
 
-    await db.sequelize.query(
-      "INSERT INTO ledger(userId,subscriptionId,isDeposit,source,message,type) VALUES(:userId,:subscriptionId,'0','1','Campaign created using subscription','campaign')",
-      {
-        replacements:{userId,subscriptionId},
-        type:QueryTypes.INSERT
-      }
+    // await db.sequelize.query(
+    //   "INSERT INTO ledger(userId,subscriptionId,isDeposit,source,message,type) VALUES(:userId,:subscriptionId,'0','1','Campaign created using subscription','campaign')",
+    //   {
+    //     replacements:{userId,subscriptionId},
+    //     type:QueryTypes.INSERT
+    //   }
 
-    );
+    // );
 
     await t.commit();
     return true;

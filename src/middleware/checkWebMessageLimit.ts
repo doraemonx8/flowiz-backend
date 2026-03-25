@@ -71,6 +71,10 @@ const checkWebMessageLimit = async (req: Request, res: Response, next: NextFunct
         if (!companyId) {
             throw new Error('Company ID not found for flow.');
         }
+        if (!adminId) {
+            console.log("REQ USER - ",req.body.userId)
+            return res.status(400).send({ status: false, message: "Admin ID not found" });
+        }
 
         // Use the unified QuotaEngine to check the bot message limit for the admin
         const quota = await QuotaEngine.checkQuota(adminId, FEATURE_SLUGS.CHATBOT_MESSAGES);

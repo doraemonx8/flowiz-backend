@@ -37,7 +37,7 @@ const webhook=async(req:Request,res:Response):Promise<any>=>{
         }
 
         const payload=JSON.parse(req.body.toString());
-        if(!payload.entry[0].changes[0].value?.contacts){
+        if (!payload?.entry?.[0]?.changes?.[0]?.value?.contacts) {
             console.log("webhook status other than recieved");
             return res.status(200).send('OK');
         }

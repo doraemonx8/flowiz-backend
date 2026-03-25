@@ -75,7 +75,7 @@ const inboxWorker = new Worker('inbox-queue', async (job: any) => {
                             return reject(new Error(`IMAP search error: ${err.message}`));
                         }
                         if (!results || results.length === 0) {
-                            console.log(`[Job ${jobId}] No new unseen messages for ${email} since ${historyDate}.`);
+                            console.log(`[Job ${jobId}] No new unseen messages for ${email} since ${effectiveHistory}.`);
                             imap.end();
                             return resolve("No new unseen messages");
                         }
@@ -165,8 +165,7 @@ const inboxWorker = new Worker('inbox-queue', async (job: any) => {
                         fetch.once('end', async () => {
                             console.log(`[Job ${jobId}] ✅ Done fetching messages for ${email}. Processed: ${messagesProcessed}, Failed: ${messagesFailed}`);
                             imap.end();
-                            // see this commented
-                            await updateEmailData({ history: getCurrentDate() }, userId, email);
+                            // await updateEmailData({ history: getCurrentDate() }, userId, email);
                             resolve("completed");
                         });
                     });

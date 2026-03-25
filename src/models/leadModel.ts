@@ -3,9 +3,14 @@ import { QueryTypes } from "sequelize";
 
 const saveLeads = async (data: any[], companyId: string, audience: string, userId: string) => {
   const t = await db.sequelize.transaction();
+
   try {
-    if (!data.length) return true;
-    // Insert into audience table
+    if (!data.length) {
+      await t.commit();
+      return true;
+    }
+
+    // Insert audience
     const [insertResult]: any = await db.sequelize.query(
       'INSERT INTO audience (userId, companyId, name) VALUES (:userId, :companyId, :name)',
       {
@@ -15,55 +20,63 @@ const saveLeads = async (data: any[], companyId: string, audience: string, userI
       }
     );
 
-    const audienceId = insertResult; 
+    const audienceId = insertResult;
 
-    //Bulk insert leads
-    const values: any[] = [];
-    const masterValues:any[]=[];
-    const placeholders: string[] = [];
+    const leadPlaceholders: string[] = [];
+    const leadValues: any[] = [];
+
+    const masterPlaceholders: string[] = [];
+    const masterValues: any[] = [];
 
     data.forEach((lead: any) => {
       if (lead.phone || lead.email) {
-        placeholders.push(`(?, ?, ?, ?, ?, ?, ?)`); 
-        values.push(
+
+        // leads (6 columns)
+        leadPlaceholders.push(`(?, ?, ?, ?, ?, ?)`);
+        leadValues.push(
           companyId,
           audienceId,
           lead.name || "",
           lead.email || "",
           lead.phone || "",
-          lead.website,
-          lead.types
+          lead.website || ""
         );
-        masterValues.push( 
+
+        // masterLeads (5 columns)
+        masterPlaceholders.push(`(?, ?, ?, ?, ?)`);
+        masterValues.push(
           lead.name || "",
           lead.email || "",
           lead.phone || "",
-          lead.website,
-          lead.types
+          lead.website || "",
+          lead.types || ""
         );
       }
     });
 
-    if (values.length > 0) {
-      const query = `
-        INSERT INTO leads (companyId,audienceIds,name, email, phone,website) VALUES ${placeholders.join(', ')}`;
+    if (leadValues.length > 0) {
+      await db.sequelize.query(
+        `INSERT INTO leads (companyId, audienceIds, name, email, phone, website)
+         VALUES ${leadPlaceholders.join(', ')}`,
+        {
+          replacements: leadValues,
+          transaction: t,
+          type: QueryTypes.INSERT,
+        }
+      );
 
-      await db.sequelize.query(query, {
-        replacements: values,
-        transaction: t,
-        type: QueryTypes.INSERT,
-      });
-
-      const masterLeadsQuery=`INSERT INTO masterLeads(name,email,phone,website,industry) VALUES ${placeholders.join(', ')}`;
-
-      await db.sequelize.query(masterLeadsQuery,{
-        replacements:masterValues,
-        transaction:t,
-        type:QueryTypes.INSERT
-      })
+      await db.sequelize.query(
+        `INSERT INTO masterLeads (name, email, phone, website, industry)
+         VALUES ${masterPlaceholders.join(', ')}`,
+        {
+          replacements: masterValues,
+          transaction: t,
+          type: QueryTypes.INSERT,
+        }
+      );
     }
 
-    //Update crawl
+    // Update crawl
     await db.sequelize.query(
       `UPDATE crawl 
        SET audienceId = :audienceId, status = '1'
@@ -74,7 +87,7 @@ const saveLeads = async (data: any[], companyId: string, audience: string, userI
         type: QueryTypes.UPDATE,
       }
     );
-    //inserting in ledger
+
     await t.commit();
     return true;
 

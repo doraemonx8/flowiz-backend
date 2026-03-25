@@ -344,7 +344,7 @@ async function getMessageToSend(chatId :string,intents:string,channel:string) : 
     }
 }
 
-
+//updatedIntents usage before declaration
 async function updateChatWithLastUsedNode(chatId: string, intent: string): Promise<boolean> {
     try {
 
