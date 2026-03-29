@@ -96,10 +96,10 @@ const getEmailHistory=async(userId:string,email:string)=>{
         type:QueryTypes.SELECT
       }
     );
-    if('history' in res[0]){
+    if (res.length > 0 && res[0] && 'history' in res[0]) {
       return res[0].history;
     }
-  return null;
+    return null;
   }catch(err){
     console.error(err);
     return null;
