@@ -14,6 +14,7 @@ const getEmailFromURL=async(url:string,crawlDepth:string)=>{
         }
 
         const html = res.data;
+        console.log("CONSOLE HTML=>",html)
         const $ = load(html);
     
         const results: string[] = [];

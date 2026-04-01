@@ -115,7 +115,7 @@ const crawlEmails=async(keywords : string,companyId:string,userId:string,crawlDe
 
 
     const {places,nextPageToken} = await fetchAllPlaces(keywords,pageToken, 50);
-    token=nextPageToken;
+    token=nextPageToken || null;;
       const pendingUrls : Array<string>=[]; //urls for which emails could not be found
       let placeDetails : any = await Promise.all(
           places.map(async (place) => {

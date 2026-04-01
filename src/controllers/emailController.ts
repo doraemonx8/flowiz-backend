@@ -3,7 +3,7 @@ import { getAllEmailsDB, deleteMailDB, insertEmail } from "../models/emailModel"
 import { verifyEmail, deleteInboxJobs, getSMTPHost, enqueueInboxTestJob } from '../utils/emailUtil';
 import { getCampaignProgress, updateCampaignStatusDB } from '../models/campaignModel';
 import { decryptId, encryptId } from '../utils/encryptDecrypt';
-
+import * as EmailModel from "../models/emailModel";
 import QuotaEngine from '../utils/quotaEngine';
 
 interface EmailData{
@@ -122,4 +122,64 @@ const testInboxQueue = async (req: Request, res: Response): Promise<any> => {
     }
 };
 
-export {getAllEmails,saveEmail,deleteEmail,encryptPassword,testInboxQueue};
+const createEmail = async (req: Request, res: Response) => {
+  try {
+    const data = req.body;
+    // Assuming your verifyJWT middleware attaches the user payload to req.user
+    const user = (req as any).user; 
+    data.userId = user?.id || user?.sub; 
+
+    const result = await EmailModel.createOrUpdateEmail(data);
+    await QuotaEngine.deductUsage({userId: user.sub,featureSlug: 'email_accounts',amount: 1,source: 'consumption',description: `Email created`});
+    return res.status(201).json(result);
+  } catch (error: any) {
+    console.error("Error during adding Data:", error.message);
+    return res.status(500).json({ success: false, message: "Error during adding Data", error: error.message });
+  }
+};
+
+const deleteData = async (req: Request, res: Response) => {
+  try {
+    const id = req.body.id;
+    const result = await EmailModel.deleteEmailRecord(id);
+    return res.status(result.statusCode || 200).json(result);
+  } catch (error: any) {
+    console.error("Error during deleting:", error.message);
+    return res.status(500).json({ success: false, message: "Error during deleting users", error: error.message });
+  }
+};
+
+const getList = async (req: Request, res: Response) => {
+  try {
+    const result = await EmailModel.getEmailList();
+    return res.status(200).json(result);
+  } catch (error: any) {
+    console.error("Error during fetching:", error.message);
+    return res.status(500).json({ success: false, message: "Error during fetching", error: error.message });
+  }
+};
+
+const getPrefill = async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(req.query.id as string);
+    const result = await EmailModel.getEmailById(id);
+    return res.status(200).json(result);
+  } catch (error: any) {
+    console.error("Error during fetching prefill:", error.message);
+    return res.status(500).json({ success: false, message: "Error during fetching prefill", error: error.message });
+  }
+};
+
+const updateStatus = async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(req.query.id as string);
+    const status = req.query.status as string;
+    const result = await EmailModel.updateEmailStatus(id, status);
+    return res.status(200).json(result);
+  } catch (error: any) {
+    console.error("Error during status update:", error.message);
+    return res.status(500).json({ success: false, message: "Error during status update", error: error.message });
+  }
+};
+
+export {getAllEmails,saveEmail,deleteEmail,encryptPassword,testInboxQueue,createEmail,deleteData,getList,getPrefill,updateStatus};

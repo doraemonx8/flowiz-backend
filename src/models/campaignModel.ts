@@ -410,7 +410,7 @@ const saveKeywords = async (campaignId: string, keywords: string, userId: string
     // Insert if not exists, else return existing
     const [result] = await db.sequelize.query(
       `
-      INSERT INTO crawl (keywords, userId, campaignId,offset) VALUES (:keywords, :userId, :campaignId,50) ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id);
+      INSERT INTO crawl (keywords, userId, campaignId,crawlOffset) VALUES (:keywords, :userId, :campaignId,50) ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id);
       `,
       {
         replacements: { campaignId, keywords, userId },

@@ -14,8 +14,12 @@ import {decryptId} from "../utils/encryptDecrypt";
 import {getCompanyIdByFlow} from "../models/flowModel";
 import BotGraph from '../utils/botGraph';
 import { incrementMessageLedger } from '../models/chats';
+import { jsonrepair } from "jsonrepair";
+import openai from "../third-party/openAI";
 
 import QuotaEngine from '../utils/quotaEngine';
+import { getEmail } from '../utils/crawlerUtil';
+import { getEmailFromURL } from '../utils/crawlUtil';
 
 
 const botController=async (message :string,chatId : string, flowId : string,userId:string,companyId:string,ip?:string,userAgent?:string )=>{
@@ -341,3 +345,72 @@ export {botController,testGraph,sendBotMessage};
    
 // }
 // export default sendMetaMessage;
+
+export const promptLab = async (req: Request, res: Response): Promise<any> => {
+    try {
+        const { prompt, productJson } = req.body;
+
+        if (!prompt || !productJson) {
+            return res.status(400).json({ 
+                status: false, 
+                message: "Need both 'prompt' (string) and 'productJson' (object or string)" 
+            });
+        }
+
+        const input = typeof productJson === "string" 
+            ? productJson 
+            : JSON.stringify(productJson);
+
+        const response = await openai.chat.completions.create({
+            model: "gpt-5-chat-latest",
+            messages: [
+                { role: "system", content: prompt },
+                { role: "user", content: `Product JSON: ${input}` }
+            ],
+        });
+
+        const raw = response.choices[0]?.message?.content || "";
+
+        // try to parse as JSON so Postman renders it nicely
+        let parsed = null;
+        let parseError = null;
+        try {
+            parsed = JSON.parse(jsonrepair(raw));
+        } catch (e: any) {
+            parseError = e.message;
+        }
+
+        return res.status(200).json({
+            status: true,
+            nodeCount: Array.isArray(parsed) ? parsed.length : null,
+            parsed,
+            raw,          // always include raw in case jsonrepair mangled something
+            parseError,
+        });
+
+    } catch (err) {
+        console.error("prompt-lab error:", err);
+        return res.status(500).json({ status: false, message: "OpenAI call failed" });
+    }
+};
+
+export const testCrawlEndpoint = async (req: Request, res: Response): Promise<any> => {
+    const { url, type } = req.query;
+
+    if (!url || typeof url !== 'string') {
+        return res.status(400).json({ status: false, message: "URL is required" });
+    }
+
+    try {
+        let result;
+        if (type === 'cluster') {
+            result = await getEmail(url);
+        } else {
+            result = await getEmailFromURL(url, "1");
+        }
+        
+        return res.status(200).json({ status: true, target: url, emailFound: result });
+    } catch (error: any) {
+        return res.status(500).json({ status: false, error: error.message });
+    }
+};

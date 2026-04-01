@@ -175,7 +175,12 @@ const updateCrawl=async(userId:string,status:string,keywords:string,nextPageToke
     try{
         await db.sequelize.query("UPDATE crawl SET status=:status,nextPageToken=:nextPageToken WHERE userId=:userId AND keywords=:keywords",
             {
-                replacements:{userId,keywords,status,nextPageToken},
+                replacements: { 
+                    userId, 
+                    keywords, 
+                    status, 
+                    nextPageToken: nextPageToken || null // Fallback to null if undefined
+                },
                 type:QueryTypes.UPDATE
             }
         )

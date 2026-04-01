@@ -11,7 +11,6 @@ const getEmail = async (url: string) => {
 
       // Get full page HTML
       const html = await page.content();
-
       // Regex to extract emails
       const emailRegex =
         /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
@@ -19,6 +18,7 @@ const getEmail = async (url: string) => {
 
       const end = performance.now();
       console.log(`Time taken to get email : ${end - start} ms`);
+      console.log("EMAILS GOT - ", emails)
 
       if (emails && emails.length > 0) {
         return emails[0]; // return first email found

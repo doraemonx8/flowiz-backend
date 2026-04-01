@@ -31,6 +31,8 @@ import audienceRouter from './routes/audienceRoutes';
 import { campaignWorker } from './workers/campaignWorker';
 import { webhook } from './controllers/metaController';
 import getClusterInstance from './config/initCluster';
+import uploadRouter from './routes/uploadRoutes';
+import manualLeadRouter from './routes/manualLeadRoutes';
 
 const campaignW1 = campaignWorker; // do not comment
 
@@ -65,9 +67,9 @@ app.use('/email', emailRouter);
 app.use('/quota', quotaRouter);
 
 app.use('/lemon',lemonSqueezyRouter);
-app.use('/api/auth', authRouter);
-app.use('/api/audience', audienceRouter);
-app.use('/api/leads', leadRouter);
+app.use('/auth', authRouter);
+app.use('/audience', audienceRouter);
+app.use('/multer', uploadRouter);
 
 app.get('/', (req: Request, res: Response) => {
   res.json({ message: 'Welcome to TypeScript Express' });

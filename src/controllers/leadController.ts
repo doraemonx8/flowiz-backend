@@ -13,6 +13,7 @@ const getLeadsFromGoogle=async(req:Request,res:Response):Promise<any>=>{
         const {userId,companyId,crawlDepth}=req.body;
 
         const campaigns = await getCampaignIdBySlug(slug as string, userId);
+        console.log("CAMPAIGNS =>",campaigns)
 
         const campaignId = campaigns?.[0]?.id;
 

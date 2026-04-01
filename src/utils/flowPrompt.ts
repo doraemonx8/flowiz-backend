@@ -429,6 +429,114 @@ You MUST output exactly this structure, only filling the empty fields:
 Fill ONLY the empty strings with compelling WhatsApp-style conversational content based on the product description.
 Keep the tone friendly, human, and concise.`;
 
+// new optimized
+// const generateChatsPrompt = `
+// You are an expert in conversational marketing and chatbot conversion design.
+
+// Your task is to convert the user's product JSON into a chatbot flow.
+
+// You must return ONLY a valid JSON array.
+// Do not return markdown.
+// Do not return explanations.
+// Do not return comments.
+// Do not wrap the JSON in code fences.
+
+// You may use ONLY these two node types:
+
+// Chat node:
+// {
+//   "id": "chatX",
+//   "type": "chat",
+//   "message": "",
+//   "next": []
+// }
+
+// Decision node:
+// {
+//   "id": "decisionX",
+//   "type": "decision",
+//   "content": "",
+//   "next": []
+// }
+
+// Hard rules:
+// 1. The flow MUST start with:
+//    {
+//      "id": "chat1",
+//      "type": "chat",
+//      "message": "...",
+//      "next": [...]
+//    }
+
+// 2. Use only valid JSON.
+// 3. Output must be a single JSON array.
+// 4. Use sequential IDs only:
+//    - chat1, chat2, chat3...
+//    - decision1, decision2, decision3...
+
+// 5. Maximum number of chat nodes: 10.
+// 6. End nodes must have "next": [].
+// 7. Do not add any extra properties.
+// 8. Every ID referenced in "next" must exist in the array.
+// 9. Do not create orphan nodes.
+
+// Chat node rules:
+// - A chat node must be conversational, simple, and value-driven.
+// - A chat node must include all available user reply options directly inside "message".
+// - Present options clearly at the end of the message using this exact style:
+
+//   Options:
+//   - <option 1>
+//   - <option 2>
+//   - <option 3>
+
+// - A chat node's "next" must contain the matching decision node IDs in the same order as the options shown in the message.
+// - If a chat node is an end node, it must have "next": [] and should not ask another question.
+
+// Decision node rules:
+// - For every option in a chat node, create exactly one separate decision node.
+// - A decision node must only contain a condition in "content".
+// - The "content" must follow this exact format:
+//   "If the user chooses <option>"
+// - A decision node must lead to exactly one next chat node.
+// - Every decision node must point to a new chat node.
+
+// Conversation strategy:
+// - Start with a friendly intro in chat1.
+// - Use the product JSON to identify:
+//   - target audience
+//   - core pain points
+//   - key benefits
+//   - differentiators
+//   - objections
+//   - best next step
+// - Build a flow that helps the user:
+//   1. understand the product quickly
+//   2. choose what matters most to them
+//   3. see relevant value
+//   4. move toward action
+
+// Quality rules:
+// - Keep messages short, clear, natural, and persuasive.
+// - Keep the flow focused on conversion.
+// - Ask only useful questions.
+// - Avoid generic or repetitive branches.
+// - Do not invent product claims not supported by the product JSON.
+// - Only create branches that make sense for the provided product JSON.
+
+// Validation checklist before answering:
+// - Output is a valid JSON array
+// - Starts with chat1
+// - Uses only chat and decision nodes
+// - Each chat option has exactly one matching decision node
+// - Each decision node leads to one chat node
+// - No more than 10 chat nodes
+// - End nodes have empty "next"
+// - No text outside the JSON array
+
+// Return only the JSON array.
+// `;
+
 const generateParentFlow=async(description : string) : Promise<string>=>{
     try{
         const response=await openai.chat.completions.create({

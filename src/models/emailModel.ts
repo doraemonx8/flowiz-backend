@@ -365,4 +365,74 @@ const getEmailSignature=async(userId:string,campaignId:string)=>{
   }
 }
 
-export {saveEmail,getGoogleHistoryId,isEmailChatPresent,addMailMessage,getAllEmailsDB,insertEmail,deleteMailDB,updateEmailData,getEmailHistory,isEmailChatByMessageId,updateEmailChat,getEmailData,getAllVerifiedEmails,getEmailSignature};
+const createOrUpdateEmail = async (data: any) => {
+  const { edit, userId, email, type, password } = data;
+
+  if (!edit || edit === 0) {
+    const [insertResult]: any = await db.sequelize.query(
+      `INSERT INTO emails (userId, email, type, password, status, isDeleted) 
+       VALUES (:userId, :email, :type, :password, '1', '0')`,
+      {
+        replacements: { userId, email, type, password },
+        type: QueryTypes.INSERT,
+      }
+    );
+    return { success: true, statusCode: 201, message: "New data created", data: insertResult };
+  } else {
+    await db.sequelize.query(
+      `UPDATE emails SET email = :email, type = :type, password = :password 
+       WHERE id = :edit AND isDeleted = '0'`,
+      {
+        replacements: { email, type, password, edit },
+        type: QueryTypes.UPDATE,
+      }
+    );
+    return { success: true, statusCode: 201, message: "Data updated", data: edit };
+  }
+};
+
+const deleteEmailRecord = async (id: number) => {
+  const [result]: any = await db.sequelize.query(
+    `UPDATE emails SET isDeleted = '1', status = '0' WHERE id = :id AND isDeleted = '0'`,
+    {
+      replacements: { id },
+      type: QueryTypes.UPDATE,
+    }
+  );
+  if (result.affectedRows === 0) {
+    return { success: false, statusCode: 404, message: "Data not found" };
+  }
+  return { success: true, statusCode: 200, message: "Record deleted" };
+};
+
+const getEmailList = async () => {
+  const emails = await db.sequelize.query(
+    `SELECT * FROM emails WHERE isDeleted = '0'`,
+    { type: QueryTypes.SELECT }
+  );
+  return { success: true, statusCode: 200, message: "Data Fetched", data: emails };
+};
+
+const getEmailById = async (id: number) => {
+  const [email] = await db.sequelize.query(
+    `SELECT * FROM emails WHERE id = :id AND isDeleted = '0' AND status = '1' LIMIT 1`,
+    {
+      replacements: { id },
+      type: QueryTypes.SELECT,
+    }
+  );
+  return { success: true, statusCode: 200, message: "Data Fetched", data: email || null };
+};
+
+const updateEmailStatus = async (id: number, status: string) => {
+  await db.sequelize.query(
+    `UPDATE emails SET status = :status WHERE id = :id`,
+    {
+      replacements: { id, status },
+      type: QueryTypes.UPDATE,
+    }
+  );
+  return { success: true, statusCode: 200, message: "Status updated successfully" };
+};
+
+export {saveEmail,getGoogleHistoryId,isEmailChatPresent,addMailMessage,getAllEmailsDB,insertEmail,deleteMailDB,updateEmailData,getEmailHistory,isEmailChatByMessageId,updateEmailChat,getEmailData,getAllVerifiedEmails,getEmailSignature,createOrUpdateEmail,deleteEmailRecord,getEmailList,getEmailById,updateEmailStatus};
