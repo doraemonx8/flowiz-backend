@@ -13,8 +13,8 @@ const queueOptions: QueueOptions = {
   connection,
   defaultJobOptions: {
     removeOnComplete: true,
-    removeOnFail: 50,
-    attempts: 3,
+    removeOnFail: false,  // removed manually after all retries , prev 50
+    attempts: 5,
   },
 };
 

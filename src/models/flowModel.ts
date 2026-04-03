@@ -437,6 +437,33 @@ const getSubflowsConfig = async (userId: string,slug: string,type?: string): Pro
   }
 };
 
+/**
+ * Get the most-recently created WhatsApp subflow (type = '4') for an admin.
+ * Returns the subflow id, its parent flowId, and configData.
+ */
+const getWhatsAppSubFlowForAdmin = async (
+  adminId: string
+): Promise<{ id: string; flowId: string; configData: string | null } | null> => {
+  try {
+    const result = await db.sequelize.query(
+      `SELECT subFlows.id, subFlows.flowId, subFlows.configData
+       FROM subFlows
+       WHERE subFlows.userId = :adminId
+         AND subFlows.type = '4'
+         AND subFlows.isDeleted = '0'
+       ORDER BY subFlows.createdOn DESC
+       LIMIT 1`,
+      { replacements: { adminId }, type: QueryTypes.SELECT }
+    );
+    if (result.length > 0) {
+      return result[0] as { id: string; flowId: string; configData: string | null };
+    }
+    return null;
+  } catch (err) {
+    console.error("getWhatsAppSubFlowForAdmin error:", err);
+    return null;
+  }
+};
 
 
-export {upsertFlowConfig,getFlowConfigFromDB,getSubFlowDataFromDB,getParentFlowPrompt,saveSubFlowToDB,getAudiencesFromDB,updateFlowConfig,getFlowConfigDB,getCompanyIdByFlow,getFlowIdBySlug,getSubFlowData,getUserIdBySubFlowId,getFlowDataFromDB,updateFlowDescriptionData,updateSubFlowDB,getSubflowsConfig};
+export {upsertFlowConfig,getFlowConfigFromDB,getSubFlowDataFromDB,getParentFlowPrompt,saveSubFlowToDB,getAudiencesFromDB,updateFlowConfig,getFlowConfigDB,getCompanyIdByFlow,getFlowIdBySlug,getSubFlowData,getUserIdBySubFlowId,getFlowDataFromDB,updateFlowDescriptionData,updateSubFlowDB,getSubflowsConfig,getWhatsAppSubFlowForAdmin};

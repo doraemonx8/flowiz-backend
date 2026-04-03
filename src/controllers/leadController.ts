@@ -85,6 +85,7 @@ const getMasterLeadsFromGoogle=async(req:Request,res:Response):Promise<any>=>{
         );
 
         console.log("total pending urls =>",pendingUrls.length);
+        console.log("Pending Urls =>",pendingUrls);
 
         //getting emails from crawler
         if(pendingUrls.length && crawlDepth > 1){
@@ -103,30 +104,63 @@ const getMasterLeadsFromGoogle=async(req:Request,res:Response):Promise<any>=>{
             }
 
 
-            const emails = await emailsResult.json() as Array<{[key: string]: string[]}>;
+            // const emails = await emailsResult.json() as Array<{[key: string]: string[]}>;
 
-            console.log(emails);
+            // if (!Array.isArray(emails)) {
+            //     console.log("Invalid email response:", emails);
+            // }
+
+            // console.log(emails);
             
-            emails.forEach((emailData : any)=>{
+            // emails.forEach((emailData : any)=>{
 
-                const url=Object.keys(emailData)[0];
-                const urlEmails=emailData[url];
+            //     const url=Object.keys(emailData)[0];
+            //     const urlEmails=emailData[url];
 
-                placeDetails=placeDetails.map((place : any)=>{
+            //     placeDetails=placeDetails.map((place : any)=>{
+            //         if(place.website==url && urlEmails.length){
+            //             place.email =urlEmails[0];
+            //         }
+            //     })
 
-                    if(place.website==url && urlEmails.length){
-                        place.email =urlEmails[0];
-                    }
-                })
+            // })
+            // }catch(err : any){
 
-            })
+            //     console.error(err.message);
+            // }
+
+            const emails = await emailsResult.json();
+
+            let count = 0;
+            if (emails && typeof emails === "object" && Array.isArray((emails as any).data)) {
+                (emails as { data: any[] }).data.forEach((emailData: any) => {
+
+                    const url = Object.keys(emailData)[0];
+                    const urlEmails = emailData[url];
+
+                    placeDetails = placeDetails.map((place: any) => {
+                        if (place.website === url && urlEmails.length) {
+                            count += 1;
+                            return { ...place, email: urlEmails[0] };
+                        }
+                        return place;
+                    });
+
+                });
+            }
+
+            console.log("total emails from crawler => ",count);
             }catch(err : any){
 
                 console.error(err.message);
             }
            
         };
+        console.log("CONSOLE LOG QUOT UNDER MASTER LEAD userId => ",userId)
         const quotaResult = await QuotaEngine.checkQuota(userId, "leads");
+        console.log("CONSOLE LOG QUOT UNDER MASTER LEAD => ",quotaResult)
+        console.log("CONSOLE LOG QUOT UNDER MASTER LEAD placeDetails => ",placeDetails)
+        console.log("CONSOLE LOG QUOT UNDER MASTER LEAD placeDetails.length => ",placeDetails.length)
         if (placeDetails.length > quotaResult.remaining) {
             placeDetails = placeDetails.slice(0, quotaResult.remaining);
         }

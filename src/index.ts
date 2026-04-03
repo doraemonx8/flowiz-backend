@@ -49,27 +49,29 @@ app.use(express.urlencoded({ extended: true }));
 
 connectMongo();
 
-app.use('/faq', faqRouter);
-app.use('/chats', chatRouter);
-app.use('/agent', agentRouter);
-app.use('/flow', flowRouter);
-app.use('/templates', templateRouter);
-app.use('/campaign', campaignRouter);
-app.use('/events', eventRouter);
-app.use('/bot', botRouter);
+const API_PREFIX = '/api';
+
+app.use(`${API_PREFIX}/faq`, faqRouter);
+app.use(`${API_PREFIX}/chats`, chatRouter);
+app.use(`${API_PREFIX}/agent`, agentRouter);
+app.use(`${API_PREFIX}/flow`, flowRouter);
+app.use(`${API_PREFIX}/templates`, templateRouter);
+app.use(`${API_PREFIX}/campaign`, campaignRouter);
+app.use(`${API_PREFIX}/events`, eventRouter);
+app.use(`${API_PREFIX}/bot`, botRouter);
 // app.use("/zoho",zohoRouter);
 // app.use("/outlook",outlookRouter);
 // app.use("/google",googleRouter);
-app.use('/meta', metaRouter);
-app.use('/dashboard', dashboardRouter);
-app.use('/leads', leadRouter);
-app.use('/email', emailRouter);
-app.use('/quota', quotaRouter);
+app.use(`${API_PREFIX}/meta`, metaRouter);
+app.use(`${API_PREFIX}/dashboard`, dashboardRouter);
+app.use(`${API_PREFIX}/leads`, leadRouter);
+app.use(`${API_PREFIX}/email`, emailRouter);
+app.use(`${API_PREFIX}/quota`, quotaRouter);
 
-app.use('/lemon',lemonSqueezyRouter);
-app.use('/auth', authRouter);
-app.use('/audience', audienceRouter);
-app.use('/multer', uploadRouter);
+app.use(`${API_PREFIX}/lemon`, lemonSqueezyRouter);
+app.use(`${API_PREFIX}/auth`, authRouter);
+app.use(`${API_PREFIX}/audience`, audienceRouter);
+app.use(`${API_PREFIX}/multer`, uploadRouter);
 
 app.get('/', (req: Request, res: Response) => {
   res.json({ message: 'Welcome to TypeScript Express' });

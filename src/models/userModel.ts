@@ -176,5 +176,30 @@ const updateHistoryId=async(email:string,historyId:string)=>{
     }
   }
 
+/**
+ * Find the admin user (id + companyId) whose metaTokenData contains
+ * the given WhatsApp phoneNumberId.
+ */
+const getAdminByPhoneNumberId = async (
+phoneNumberId: string
+): Promise<{ id: string; companyId: string } | null> => {
+try {
+    const res = await db.sequelize.query(
+    `SELECT id, companyId
+    FROM users
+    WHERE JSON_UNQUOTE(JSON_EXTRACT(metaTokenData, '$.phoneNumberId')) = :phoneNumberId
+        AND isDeleted = '0'
+    LIMIT 1`,
+    { replacements: { phoneNumberId }, type: QueryTypes.SELECT }
+    );
+    if (res.length > 0) {
+    return res[0] as { id: string; companyId: string };
+    }
+    return null;
+} catch (err) {
+    console.error("getAdminByPhoneNumberId error:", err);
+    return null;
+}
+};
 
-export {saveTokensInDB,getTokensFromDB,updateHistoryId,getUserEmails,removeTokensFromDB,getUserEmailByCampaign};
+export {saveTokensInDB,getTokensFromDB,updateHistoryId,getUserEmails,removeTokensFromDB,getUserEmailByCampaign,getAdminByPhoneNumberId};

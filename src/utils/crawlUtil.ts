@@ -90,7 +90,7 @@ const generateEmails = (name: string, domain: string): string[] => {
 const getNameEmail = async (text: string, domainUrl: string) => {
   try {
     const res = await axios.post(
-      "https://cybernauts.online/aqua/get-names",
+      "https://cybernauts.online/aqua/find-names",
       { text },
       { headers: { "Content-Type": "application/json" } }
     );
