@@ -15,6 +15,7 @@ export type EmailNode = BaseNode & {
     secDelay?: string;
     isFirst: boolean;
     isLast: boolean;
+    attachments?: Array<{ filename: string; path: string }>;
   }
   
 }
@@ -50,6 +51,7 @@ export type FollowUpEmailItem = {
   type: "email"
   subject: string
   body: string
+  attachments?: Array<{ filename: string; path: string }>;
 }
 
 export type FollowUpWhatsappItem = {

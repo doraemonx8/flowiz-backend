@@ -54,6 +54,7 @@ const scheduleCampaign=async(req:Request,res:Response):Promise<any>=>{
         campaignData[0].isWhatsappAgent=isWhatsappAgent;
         campaignData[0].userEmailData=isEmailAgent ? emailData : [];
         campaignData[0].delay=delay;
+        campaignData[0].campaignName = campaignData[0].name || 'Campaign';
 
         const schedulingQuota = await QuotaEngine.checkQuota(userId, 'scheduling');
         console.log("SCHEDULE QUOTA - ", schedulingQuota)

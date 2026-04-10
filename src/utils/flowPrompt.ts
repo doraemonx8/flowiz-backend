@@ -186,74 +186,139 @@ You MUST output exactly this structure, only filling the empty fields:
 Fill ONLY the empty strings with compelling email content based on the product description.`;
 
 
-const generateCallsPrompt = `You are an expert outbound call strategist. Analyze the provided product JSON to determine:
+// const generateCallsPrompt = `You are an expert outbound call strategist. Analyze the provided product JSON to determine:
 
-Optimal number of calls
+// Optimal number of calls
 
-Explicit delay requirements between calls
+// Explicit delay requirements between calls
 
-Product details and target audience
+// Product details and target audience
 
-Key Guidelines:
+// Key Guidelines:
 
-Always generate outbound call scripts.
+// Always generate outbound call scripts.
 
-If a specific number of calls is mentioned in the description, use that number.
+// If a specific number of calls is mentioned in the description, use that number.
 
-If no specific number is mentioned, generate 3–5 strategic call scripts.
+// If no specific number is mentioned, generate 3–5 strategic call scripts.
 
-Include delay objects ONLY if a delay is explicitly stated in the description.
+// Include delay objects ONLY if a delay is explicitly stated in the description.
 
-Do not add any delays if not specifically mentioned.
+// Do not add any delays if not specifically mentioned.
 
-JSON Structure Requirements:
+// JSON Structure Requirements:
 
-Use an array containing call objects with title and script keys.
+// Use an array containing call objects with title and script keys.
 
-Include optional delay objects only if explicitly specified in the description (with a delay key containing the exact number of days or time).
+// Include optional delay objects only if explicitly specified in the description (with a delay key containing the exact number of days or time).
 
-Ensure that the call objects are structured with logical progression of conversation topics.
+// Ensure that the call objects are structured with logical progression of conversation topics.
 
-Delay Inclusion Rules:
+// Delay Inclusion Rules:
 
-If the description says "Make a call every X days" → Include delay objects with the exact number of days.
+// If the description says "Make a call every X days" → Include delay objects with the exact number of days.
 
-If no delay is mentioned, provide a continuous call sequence without delays.
+// If no delay is mentioned, provide a continuous call sequence without delays.
 
-Example with Delay:
+// Example with Delay:
+// [
+//   {
+//     "title": "First call",
+//     "script": "Introductory script for the first call..."
+//   },
+//   {
+//     "delay": {
+//       "hours": "<delay in hours>",
+//       "mins": "<delay in minutes>"
+//     }
+//   },
+//   {
+//     "title": "Second call",
+//     "script": "Follow-up script for the second call..."
+//   }
+// ]
+// Example without Delay:
+
+// [
+//   {
+//     "title": "First call",
+//     "script": "Introductory script for the first call..."
+//   },
+//   {
+//     "title": "Second call",
+//     "script": "Follow-up script for the second call..."
+//   }
+// ]
+
+// Output Instructions:
+// Generate a valid JSON array for outbound calls only.
+// Do not add any explanatory text.
+// Ensure that the call scripts are persuasive, structured, and audience-appropriate, matching the target audience described in the product description.`;
+
+
+const generateCallsPrompt = `
+You are an expert outbound call strategist.
+Your task: Generate ONLY the call script content inside a fixed node structure.
+Do NOT change the structure, number of nodes, keys, IDs, or their order.
+
+Rules:
+- Analyze the provided product JSON.
+- Use {{lead_name}} as the placeholder for the recipient's name.
+- Write scripts as the AI agent's natural speaking lines — voice-friendly, conversational, under 60 words per node.
+- Negative response means the lead is NOT interested — we NEVER call them again (next: [] on decision2).
+- No-answer / voicemail means we retry with delays via followUp1.
+- Positive response means interest confirmed — we do ONE closing call then stop.
+- Keep JSON valid. No explanations outside the array.
+
+You MUST output exactly this structure, only filling the empty "title" and "script" fields:
+
 [
   {
-    "title": "First call",
-    "script": "Introductory script for the first call..."
+    "id": "call1",
+    "type": "call",
+    "title": "",
+    "script": "",
+    "isFirst": true,
+    "next": ["decision1", "decision2", "followUp1"]
   },
   {
-    "delay": {
-      "hours": "<delay in hours>",
-      "mins": "<delay in minutes>"
-    }
+    "id": "decision1",
+    "type": "decision",
+    "content": "If the user responds positively and shows interest",
+    "next": ["callPositive"]
   },
   {
-    "title": "Second call",
-    "script": "Follow-up script for the second call..."
+    "id": "decision2",
+    "type": "decision",
+    "content": "If the user responds negatively or asks not to be called again",
+    "next": []
+  },
+  {
+    "id": "followUp1",
+    "type": "followUp",
+    "data": [
+      { "type": "delay", "hours": "24", "mins": "0", "sec": "0" },
+      { "type": "call", "title": "", "script": "" },
+      { "type": "delay", "hours": "48", "mins": "0", "sec": "0" },
+      { "type": "call", "title": "", "script": "" }
+    ],
+    "next": []
+  },
+  {
+    "id": "callPositive",
+    "type": "call",
+    "title": "",
+    "script": "",
+    "isLast": true,
+    "next": []
   }
 ]
-Example without Delay:
 
-[
-  {
-    "title": "First call",
-    "script": "Introductory script for the first call..."
-  },
-  {
-    "title": "Second call",
-    "script": "Follow-up script for the second call..."
-  }
-]
-
-Output Instructions:
-Generate a valid JSON array for outbound calls only.
-Do not add any explanatory text.
-Ensure that the call scripts are persuasive, structured, and audience-appropriate, matching the target audience described in the product description.`;
+IMPORTANT:
+- decision2 MUST always have "next": [] — negative response = stop all calls.
+- followUp1 data items are retry calls for when nobody answers.
+- callPositive is the only follow-up for an interested lead — after this, stop.
+- Scripts must sound like a natural phone call opener.`;
 
 
 const generateChatsPromptOld = `You are an expert in conversational marketing. Analyze the product description to determine:
@@ -612,30 +677,22 @@ const generateEmails=async(json:string):Promise<string>=>{
   }
 }
 
-const generateCalls=async(json:string):Promise<string>=>{
-
-  try{
-
-    const response=await openai.chat.completions.create({
-      model: 'gpt-4.1-mini',
+const generateCalls = async (json: string): Promise<string> => {
+  try {
+    const response = await openai.chat.completions.create({
+      model: 'gpt-5-chat-latest',
       messages: [
         { role: 'system', content: generateCallsPrompt },
-        { role: 'user', content: `Product JSON :${json}`}
+        { role: 'user', content: `Product JSON: ${json}` }
       ],
-      temperature: 0.4,
     });
-
-  const data=response.choices[0]?.message?.content;
-
-  return data ? data : "{}";
-
-  }catch(err){
-
-    console.error("An error occured while checking flow prompt : ",err);
-
-    return "{}";
+    const data = response.choices[0]?.message?.content;
+    return data ? data : "[]";
+  } catch (err) {
+    console.error("An error occurred while generating calls:", err);
+    return "[]";
   }
-}
+};
 
 
 const generateChats=async(json:string):Promise<string>=>{

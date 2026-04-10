@@ -133,26 +133,22 @@ router.post("/resolve", async (req: Request, res: Response): Promise<any> => {
 // ─────────────────────────────────────────────────────────────────────────────
 router.post("/make-direct", async (req: Request, res: Response): Promise<any> => {
   try {
-    const { phone, script, name, calltype, adminId, campaignName, campaignId } = req.body;
+    const { phone, script, calltype } = req.body;
     if (!phone || !script) {
       return res.status(400).json({ status: false, message: "phone and script required" });
     }
 
-    const CALL_SERVER_URL = process.env.CALL_SERVER_URL || "https://72c0-122-161-49-7.ngrok-free.app";
+    const CALL_SERVER_URL = process.env.CALL_SERVER_URL || "https://4fbb-122-161-52-81.ngrok-free.app";
     const CALL_TYPE       = calltype || process.env.CALL_TYPE || "campaign";
 
     const response = await axios.post(
-        `${CALL_SERVER_URL}/make-call`,
-        {
-            number: phone,
-            calltype: CALL_TYPE,
-            prompt: script,
-            name: name || phone,
-            adminId,
-            campaignName,
-            campaignId
-        },
-        { timeout: 15000 }
+      `${CALL_SERVER_URL}/make-call`,
+      {
+        ...req.body,              
+        number: phone,           
+        calltype: CALL_TYPE
+      },
+      { timeout: 15000 }
     );
 
     return res.json({ status: true, pythonResponse: response.data });

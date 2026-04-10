@@ -26,7 +26,7 @@ const connection = new IORedis({
 
 //WORKERS
 const emailWorker=new Worker('email-queue',async(job :any)=>{
-    const {campaignId,companyId,leadId,email,subject,body,userId,flowId,nodeId,flowData,userEmailData}=job.data;
+    const {campaignId,companyId,leadId,email,subject,body,userId,flowId,nodeId,flowData,userEmailData,attachments}=job.data;
     if(!(await checkQuota('email'))){
         console.log(`Email limit reached for today. Skipping: ${job.data.email}`);
         return;
@@ -52,7 +52,7 @@ const emailWorker=new Worker('email-queue',async(job :any)=>{
     const signature = "\n" + (userEmailData.signature ?? "");
     // const {messageId,threadId}=await sendGmailEmail(userId,{to:email,from:userEmail.userEmail,subject,body,isHtml:true,signature})
     const smtpHost = getSMTPHost(userEmailData.type, userEmailData.host);
-    const {isSent,messageId}=await sendEmail({userEmail:userEmailData.email,userPassword:userEmailData.password,from:userEmailData.email,host:smtpHost,subject,body:body+signature,to:email});
+    const {isSent,messageId}=await sendEmail({userEmail:userEmailData.email,userPassword:userEmailData.password,from:userEmailData.email,host:smtpHost,subject,body:body+signature,to:email,attachments});
 
     if(!isSent){
         await updateJobStatus(job.id,"failed",messageId);
@@ -282,6 +282,9 @@ const callWorker = new Worker("call-queue", async (job: any) => {
     subFlow, leadId, email, phone, name,
     campaignId, companyId, userId,
     flowId, nodeId, script, title,
+    campaignName  = "",
+    aiName        = "AI Assistant",
+    dynamicFields = {},
   } = job.data;
 
   if (!(await checkQuota("call"))) {
@@ -300,35 +303,36 @@ const callWorker = new Worker("call-queue", async (job: any) => {
     return;
   }
 
-  console.log(`Initiating call to: ${phone} | node: ${nodeId}`);
+  console.log(`Initiating call → ${phone} | campaign: ${campaignName} | node: ${nodeId}`);
 
-  const CALL_SERVER_URL = process.env.CALL_SERVER_URL || "https://72c0-122-161-49-7.ngrok-free.app";
+  const CALL_SERVER_URL = process.env.CALL_SERVER_URL || "https://4fbb-122-161-52-81.ngrok-free.app";
   const CALL_TYPE       = process.env.CALL_TYPE       || "campaign";
 
-  // ── Hit the Python call server ─────────────────────────────────────────────
   let callTaskId: string | null = null;
   try {
     const callResponse = await axios.post(
       `${CALL_SERVER_URL}/make-call`,
       {
-        number:     phone,
-        calltype:   CALL_TYPE,
-        // The `script` is the GPT realtime system prompt for this call node.
-        prompt:     script,
-        name:       name || phone,
+        number:       phone,
+        calltype:     CALL_TYPE,
+        name:         name || phone,
+        campaignName,
         campaignId,
+        adminId:      userId,
+        ai_name:      aiName,
+        dynamicFields,
+        node_script:  script,
+        node_title:   title,
         leadId,
-        companyId,
-        // Pass these so the Python session manager can store them and the
-        // Node.js /call-ended webhook can look up the chat later.
         nodeId,
         flowId,
         userId,
+        companyId,
       },
       { timeout: 15_000 }
     );
     callTaskId = callResponse.data?.task_id ?? null;
-    console.log(`Call queued on Python server — task_id: ${callTaskId}`);
+    console.log(`Call queued — task_id: ${callTaskId}`);
   } catch (err: any) {
     const msg = err?.response?.data?.error ?? err.message;
     await updateJobStatus(job.id, "failed", msg);
@@ -337,41 +341,35 @@ const callWorker = new Worker("call-queue", async (job: any) => {
 
   await incrementQuota("call");
 
-  // ── Create MongoDB chat document ────────────────────────────────────────────
-  // Status is "pending" until the Python /call-ended webhook updates it.
-  const rawFlowData =
-    subFlow?.flowData
-      ? JSON.stringify(subFlow.flowData)
-      : JSON.stringify(subFlow?.json ?? []);
+  // Create MongoDB chat document
+  const rawFlowData = subFlow?.flowData
+    ? JSON.stringify(subFlow.flowData)
+    : JSON.stringify(subFlow?.json ?? []);
 
   const chatDoc: any = {
-    _id:              Math.floor(10000000 + Math.random() * 90000000).toString(),
+    _id:               Math.floor(10_000_000 + Math.random() * 90_000_000).toString(),
     campaignId,
     companyId,
-    userId:           leadId,    // lead is the "user" in the chat
-    adminId:          userId,    // campaign owner is the admin
-    userPhone:        phone,
+    userId:            leadId,
+    adminId:           userId,
+    userPhone:         phone,
     flowId,
-    flowData:         rawFlowData,
-    botRole:          title || "Call Agent",
+    flowData:          rawFlowData,
+    botRole:           aiName || title || "Call Agent",
     currentFlowNodeId: nodeId,
-    intents:          {},
-    isAgentHandover:  false,
-    isCompleted:      false,
-    isDeleted:        false,
-    sentiment:        "proceed",
-    channel:          "call",
-    // Store call metadata so the /call-ended webhook can find this doc.
+    intents:           {},
+    isAgentHandover:   false,
+    isCompleted:       false,
+    isDeleted:         false,
+    sentiment:         "proceed",
+    channel:           "call",
     callTaskId,
-    messages: [
-      {
-        isBot:      true,
-        flowNodeId: nodeId,
-        // First message is the script / opening prompt for reference.
-        message:    title || script,
-        createdOn:  Math.floor(Date.now() / 1000),
-      },
-    ],
+    messages: [{
+      isBot:      true,
+      flowNodeId: nodeId,
+      message:    title || script,
+      createdOn:  Math.floor(Date.now() / 1000),
+    }],
     createdOn: Math.floor(Date.now() / 1000),
   };
 
@@ -387,7 +385,7 @@ const callWorker = new Worker("call-queue", async (job: any) => {
     },
   });
 
-  console.log(`Call chat document created: ${chatDoc._id}`);
+  console.log(`Call chat created: ${chatDoc._id}`);
 }, { connection, concurrency: 1, limiter: { max: 1, duration: 1000 } });
 
 

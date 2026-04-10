@@ -350,6 +350,7 @@ const sendNextMail = async (chat: any, email: string, replyText: string) => {
     // Support both flat { subject, body } (flow builder) and nested { data: { subject, body } }
     const emailSubject = (nextEmailNode as any).subject ?? (nextEmailNode as any).data?.subject;
     const emailBody    = (nextEmailNode as any).body    ?? (nextEmailNode as any).data?.body;
+    const attachments  = (nextEmailNode as any).attachments ?? (nextEmailNode as any).data?.attachments;
     const varValues    = (nextEmailNode as any).variableValues ?? (nextEmailNode as any).data?.variableValues;
     const varMap   = buildVariableMap(varValues, leadData);
 
@@ -368,7 +369,7 @@ const sendNextMail = async (chat: any, email: string, replyText: string) => {
     console.log("[sendNextMail] Enqueuing email job:", jobId, "→ node:", targetNodeId);
 
     await addJob(jobId, companyId, adminId, flowId, campaignId, leadId, "email");
-    await emailQueue.add("email-job", { ...basePayload, subject: fillTemplate(emailSubject, varMap), body: fillTemplate(emailBody, varMap), nodeId: targetNodeId }, { jobId });
+    await emailQueue.add("email-job", { ...basePayload, subject: fillTemplate(emailSubject, varMap), body: fillTemplate(emailBody, varMap),attachments, nodeId: targetNodeId }, { jobId });
 
     // Persist the new current node so the NEXT reply routes from the right place
     await updateEmailChat(_id, { currentFlowNodeId: targetNodeId });
@@ -390,6 +391,7 @@ const sendNextMail = async (chat: any, email: string, replyText: string) => {
             ...basePayload,
             subject: fillTemplate(emailSubject, varMap),
             body: fillTemplate(emailBody, varMap),
+            attachments: emailJob.attachments ?? (emailJob as any).data?.attachments,
             nodeId:  targetNodeId,
         }, { delay: delayInMs, jobId: followUpJobId });
 
@@ -436,6 +438,7 @@ const scheduleFollowUps = async (params: {
         await emailQueue.add("email-job", {
             subject:       fillTemplate(emailJob.subject as string, varMap),
             body:          fillTemplate(emailJob.body    as string, varMap),
+            attachments:   emailJob.attachments ?? (emailJob as any).data?.attachments,
             leadId,
             flowId,
             email,

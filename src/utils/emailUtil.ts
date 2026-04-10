@@ -15,6 +15,7 @@ interface SendEmailInterface{
   to:string;
   subject:string;
   body:string;
+  attachments?: Array<{ filename: string; path: string }>;
 }
 
 // Standard SMTP host mapping for common email providers
@@ -84,7 +85,16 @@ const sendEmail=async(params:SendEmailInterface)=> {
           pass: params.userPassword 
         },
       });
-      const mailOptions = {from:params.from,to:params.to,subject:params.subject,html:params.body.replaceAll("\n","<br>")};
+      const mailOptions: any = {
+        from: params.from,
+        to: params.to,
+        subject: params.subject,
+        html: params.body.replaceAll("\n", "<br>")
+      };
+
+      if (params.attachments && params.attachments.length > 0) {
+        mailOptions.attachments = params.attachments;
+      }
       const info = await transporter.sendMail(mailOptions);
       console.log('Message sent: %s', info.messageId);
       return {isSent:true,messageId:info.messageId};
@@ -108,12 +118,18 @@ const sendEmailReply=async(params:Record<string,any>)=>{
         },
     });
 
-    const mailOptions = {
-      from:params.from,to:params.to,
-      subject:params.subject,html:params.body,
-      inReplyTo:params.lastMessageId,
-      references:params.references
+    const mailOptions: any = {
+      from: params.from, 
+      to: params.to,
+      subject: params.subject, 
+      html: params.body,
+      inReplyTo: params.lastMessageId,
+      references: params.references
     };
+
+    if (params.attachments && params.attachments.length > 0) {
+      mailOptions.attachments = params.attachments;
+    }
     
     const info=await transporter.sendMail(mailOptions);
     console.log("Reply sent : %s",info.messageId);

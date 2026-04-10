@@ -10,6 +10,7 @@ const getCampaignData=async(campaignId : string | number) : Promise<any>=>{
         const data= await db.sequelize.query(
           `SELECT 
     campaigns.id AS campaignId,
+    campaigns.name AS campaignName,
     campaigns.scheduledAt,
     campaigns.companyId AS companyId,
     -- Aggregate subFlows data as JSON array
@@ -30,6 +31,11 @@ const getCampaignData=async(campaignId : string | number) : Promise<any>=>{
                         WHEN subFlows.json IS NULL THEN 'null'
                         WHEN JSON_VALID(subFlows.json) THEN subFlows.json
                         ELSE CONCAT('"', REPLACE(REPLACE(subFlows.json, '\\\\', '\\\\\\\\'), '"', '\\"'), '"')
+                    END,
+                    ',"configData":', CASE 
+                        WHEN subFlows.configData IS NULL THEN 'null'
+                        WHEN JSON_VALID(subFlows.configData) THEN subFlows.configData
+                        ELSE CONCAT('"', REPLACE(REPLACE(subFlows.configData, '\\\\', '\\\\\\\\'), '"', '\\"'), '"')
                     END,
                     '}'
                 )
@@ -59,7 +65,7 @@ FROM campaigns
 LEFT JOIN subFlows ON campaigns.flowId = subFlows.flowId
 LEFT JOIN leads ON FIND_IN_SET(leads.id, campaigns.leads) > 0
 WHERE campaigns.id = :campaignId
-GROUP BY campaigns.id, campaigns.scheduledAt, campaigns.companyId;
+GROUP BY campaigns.id, campaigns.name, campaigns.scheduledAt, campaigns.companyId;
 `,
 
             {

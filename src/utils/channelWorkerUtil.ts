@@ -433,22 +433,12 @@ export const createWhatsAppJobsDataFromFlow = (
 
 export interface CallJobData {
   id: string;
-  /** Short label / opening line for the call */
   title: string;
-  /** Full text used as the GPT realtime system prompt */
   script: string;
   delay: { hours: string; mins: string } | null;
 }
 
-/**
- * Build an ordered list of call jobs from a campaign call subflow.
- *
- * Supports both formats:
- *   • json  – flat array from generateCallsPrompt: [{title, script}, {delay:{hours,mins}}, …]
- *   • flowData – React-Flow visual nodes: [{id, type, data:{title,script,prompt}, …}]
- *
- * {{lead_name}} and other {{placeholders}} are resolved against the lead.
- */
+
 export const createCallJobsDataFromFlow = (
   subFlow: any,
   lead: LeadData
@@ -460,42 +450,46 @@ export const createCallJobsDataFromFlow = (
 
     if (!flowNodes?.length) return [];
 
-    const jobs: CallJobData[] = [];
-    let pendingDelay: { hours: string; mins: string } | null = null;
-    let callIndex = 0;
+    const firstNode: any =
+      flowNodes.find((n: any) => n.isFirst === true) ??
+      flowNodes.find((n: any) => n.id === "call1") ??
+      flowNodes.find((n: any) => n.type === "call");
 
-    for (const node of flowNodes) {
-      // Pure delay separator: {delay:{hours,mins}} with no title/script
-      if (node.delay && !node.title && !node.script && !node.data?.script) {
-        pendingDelay = {
-          hours: String(node.delay.hours ?? node.delay.hourDelay ?? 0),
-          mins:  String(node.delay.mins  ?? node.delay.minDelay  ?? 0),
-        };
-        continue;
-      }
+    if (!firstNode) return [];
 
-      // Call node — flat json or nested data
-      const rawTitle  = node.title  ?? node.data?.title  ?? "";
-      const rawScript = node.script ?? node.data?.script ?? node.data?.prompt ?? "";
+    const varMap = buildVariableMap(
+      firstNode.variableValues ?? firstNode.data?.variableValues,
+      lead
+    );
 
-      if (!rawScript && !rawTitle) continue;
+    const rawTitle  = firstNode.title  ?? firstNode.data?.title  ?? "";
+    const rawScript = firstNode.script ?? firstNode.data?.script ?? firstNode.data?.prompt ?? "";
 
-      const varMap = buildVariableMap(
-        node.variableValues ?? node.data?.variableValues,
-        lead
-      );
+    // Get no-answer retry calls from followUp nodes
+    const scheduledRetries = scheduleMessages(
+      { currentNodeId: firstNode.id, flowData: flowNodes },
+      "call"
+    ).map((job: any) => {
+      const retryVarMap = buildVariableMap(job.variableValues, lead);
+      return {
+        id:     `retry_${firstNode.id}_${job.delay?.hourDelay ?? 0}h`,
+        title:  fillTemplate(job.title  ?? "", retryVarMap),
+        script: fillTemplate(job.script ?? "", retryVarMap),
+        delay:  job.delay
+          ? { hours: String(job.delay.hourDelay), mins: String(job.delay.minDelay) }
+          : null,
+      };
+    });
 
-      jobs.push({
-        id:     node.id ?? `call${++callIndex}`,
+    return [
+      {
+        id:     firstNode.id ?? "call1",
         title:  fillTemplate(rawTitle,  varMap),
         script: fillTemplate(rawScript, varMap),
-        delay:  pendingDelay,
-      });
-
-      pendingDelay = null;
-    }
-
-    return jobs;
+        delay:  null,
+      },
+      ...scheduledRetries,
+    ];
   } catch (err) {
     console.error("An error occurred while creating call jobs:", err);
     return [];

@@ -15,6 +15,9 @@ type ScheduledJob = {
   message?:string;
   template?:string;
   templateFile?:string;
+  attachments?: any[];
+  title?:string;  
+  script?:string;
   variableValues?:Record<string,string>
   delay: {
     hourDelay: number;
@@ -76,6 +79,14 @@ const scheduleMessages = ({ currentNodeId, flowData }: ScheduleMessagesParams,ch
 
         jobs.push(job);
         }
+
+      if (channel === "call" && (item as any).type === "call") {
+        (job as any).title  = (item as any).title  ?? "";
+        (job as any).script = (item as any).script ?? "";
+        jobs.push(job);
+        continue;
+      }
+
       }
     }
     return jobs;

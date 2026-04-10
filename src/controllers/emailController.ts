@@ -182,4 +182,27 @@ const updateStatus = async (req: Request, res: Response) => {
   }
 };
 
-export {getAllEmails,saveEmail,deleteEmail,encryptPassword,testInboxQueue,createEmail,deleteData,getList,getPrefill,updateStatus};
+const uploadEmailAttachment = async (req: Request, res: Response) => {
+  try {
+    const files = req.files as Express.Multer.File[];
+
+    if (!files || files.length === 0) {
+      return res.status(400).json({ status: false, message: "No files uploaded" });
+    }
+
+    const uploadedFiles = files.map(file => ({
+      url: file.path,
+      name: file.filename
+    }));
+
+    return res.status(200).json({
+      status: true,
+      message: "Attachments uploaded successfully",
+      attachments: uploadedFiles // [{url, name}, {url, name}]
+    });
+  } catch (error) {
+    return res.status(500).json({ status: false, message: "Upload failed" });
+  }
+};
+
+export {getAllEmails,saveEmail,deleteEmail,encryptPassword,testInboxQueue,createEmail,deleteData,getList,getPrefill,updateStatus,uploadEmailAttachment};
