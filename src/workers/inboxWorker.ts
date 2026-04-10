@@ -11,7 +11,10 @@ import { removeScheduledJobs, scheduleMessages } from "../utils/scheduleUtil";
 import { emailQueue } from "../queues/campaignQueue";
 import { EmailNode, FlowData, FlowNode } from "../types/flow.type";
 import { decideNextNode } from "../utils/botUtilPrompt";
-import { getLeadMail } from "../models/leadModel";
+import { getLeadMail, getLeadData } from "../models/leadModel";
+import { buildVariableMap, fillTemplate, LeadData } from "../utils/channelWorkerUtil";
+import db from "../models/conn";
+import { QueryTypes } from "sequelize";
 // import { getEmailReplySentiment } from "../utils/botUtilPrompt";
 // import { getCampaignIdByLeadsId } from "../models/campaignModel";
 
@@ -250,6 +253,8 @@ const sendNextMail = async (chat: any, email: string, replyText: string) => {
     }
     console.log(`[sendNextMail] Resolved lead email for leadId ${leadId}: ${leadEmail}`);
 
+    const leadData = await getLeadData(leadId);
+
     const parsedFlowData: FlowData = JSON.parse(flowData);
     console.log("[sendNextMail] currentFlowNodeId:", currentFlowNodeId);
 
@@ -314,6 +319,7 @@ const sendNextMail = async (chat: any, email: string, replyText: string) => {
                 currentNodeId: currentFlowNodeId,
                 parsedFlowData,
                 leadId,
+                leadData, 
                 adminId,
                 campaignId,
                 companyId,
@@ -344,6 +350,8 @@ const sendNextMail = async (chat: any, email: string, replyText: string) => {
     // Support both flat { subject, body } (flow builder) and nested { data: { subject, body } }
     const emailSubject = (nextEmailNode as any).subject ?? (nextEmailNode as any).data?.subject;
     const emailBody    = (nextEmailNode as any).body    ?? (nextEmailNode as any).data?.body;
+    const varValues    = (nextEmailNode as any).variableValues ?? (nextEmailNode as any).data?.variableValues;
+    const varMap   = buildVariableMap(varValues, leadData);
 
     const basePayload = {
         leadId,
@@ -360,7 +368,7 @@ const sendNextMail = async (chat: any, email: string, replyText: string) => {
     console.log("[sendNextMail] Enqueuing email job:", jobId, "→ node:", targetNodeId);
 
     await addJob(jobId, companyId, adminId, flowId, campaignId, leadId, "email");
-    await emailQueue.add("email-job", { ...basePayload, subject: emailSubject, body: emailBody, nodeId: targetNodeId }, { jobId });
+    await emailQueue.add("email-job", { ...basePayload, subject: fillTemplate(emailSubject, varMap), body: fillTemplate(emailBody, varMap), nodeId: targetNodeId }, { jobId });
 
     // Persist the new current node so the NEXT reply routes from the right place
     await updateEmailChat(_id, { currentFlowNodeId: targetNodeId });
@@ -380,8 +388,8 @@ const sendNextMail = async (chat: any, email: string, replyText: string) => {
         const followUpJobId = `${Date.now()}_email_followup_${targetNodeId}`;
         await emailQueue.add("email-job", {
             ...basePayload,
-            subject: emailJob.subject as string,
-            body:    emailJob.body    as string,
+            subject: fillTemplate(emailSubject, varMap),
+            body: fillTemplate(emailBody, varMap),
             nodeId:  targetNodeId,
         }, { delay: delayInMs, jobId: followUpJobId });
 
@@ -399,6 +407,7 @@ const scheduleFollowUps = async (params: {
     currentNodeId: string;
     parsedFlowData: FlowData;
     leadId: string;
+    leadData: LeadData; 
     adminId: string;
     campaignId: string;
     companyId: string;
@@ -409,7 +418,7 @@ const scheduleFollowUps = async (params: {
 }) => {
     const {
         currentNodeId, parsedFlowData,
-        leadId, adminId, campaignId, companyId,
+        leadId, leadData, adminId, campaignId, companyId,
         flowId, rawFlowData, email, parsedEmailAuth,
     } = params;
 
@@ -417,6 +426,7 @@ const scheduleFollowUps = async (params: {
     console.log("[scheduleFollowUps] Scheduling", emailsToSchedule.length, "follow-up email(s).");
 
     for (const emailJob of emailsToSchedule) {
+        const varMap = buildVariableMap(emailJob.variableValues, leadData);  
         // const delayInMs =
         //     (Number(emailJob.delay?.hourDelay) * 60 * 60 * 1000) +
         //     (Number(emailJob.delay?.minDelay)  * 60 * 1000);
@@ -424,8 +434,8 @@ const scheduleFollowUps = async (params: {
 
         const jobId = `${Date.now()}_email_followup`;
         await emailQueue.add("email-job", {
-            subject:       emailJob.subject as string,
-            body:          emailJob.body    as string,
+            subject:       fillTemplate(emailJob.subject as string, varMap),
+            body:          fillTemplate(emailJob.body    as string, varMap),
             leadId,
             flowId,
             email,

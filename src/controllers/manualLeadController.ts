@@ -7,8 +7,8 @@ export const createLead = async (req: Request, res: Response) => {
     const data = req.body;
     // Assuming your verifyJWT middleware attaches the user payload to req.user
     const user = (req as any).user;
-    data.userId = user?.sub || user?.id;
-    
+    // data.userId = user?.sub || user?.id;
+    delete data.userId;
     console.log(data, "ol");
 
     // We pass 'leads' as the table name based on the updated commonService

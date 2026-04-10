@@ -1,5 +1,6 @@
 import db from "../models/conn";
 import { QueryTypes } from "sequelize";
+import { LeadData } from "../utils/channelWorkerUtil"
 
 const saveLeads = async (data: any[], companyId: string, audience: string, userId: string) => {
   const t = await db.sequelize.transaction();
@@ -117,6 +118,22 @@ const getLeadMail=async(id:string)=>{
     }
 }
 
+const getLeadData = async (leadId: string): Promise<LeadData> => {
+  try {
+    const result = await db.sequelize.query<any>(
+      `SELECT id, name, email, phone FROM leads WHERE id = :leadId AND isDeleted = '0' LIMIT 1`,
+      { replacements: { leadId }, type: QueryTypes.SELECT }
+    );
+    if (result.length > 0) {
+      const r = result[0];
+      return { id: r.id, name: r.name || "", email: r.email || "", phone: r.phone || "" };
+    }
+    return { id: leadId, name: "", email: "", phone: "" };
+  } catch (err) {
+    console.error("getLeadData error:", err);
+    return { id: leadId, name: "", email: "", phone: "" };
+  }
+};
 
 const transferLeadsFromMaster=async(userId:string,companyId:string)=>{
     try{
@@ -192,7 +209,7 @@ const updateCrawl=async(userId:string,status:string,keywords:string,nextPageToke
     }
 }
 
-export {saveLeads,getLeadMail,transferLeadsFromMaster,checkAudience,updateCrawl};
+export {saveLeads,getLeadMail,getLeadData,transferLeadsFromMaster,checkAudience,updateCrawl};
 
 
 

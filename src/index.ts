@@ -27,6 +27,8 @@ import lemonSqueezyRouter from './routes/lemonSqueezyRoutes';
 import authRouter from './routes/authRoutes';
 import audienceRouter from './routes/audienceRoutes';
 
+import callTestRouter from "./routes/callTestRoutes";
+
 //importing workers
 import { campaignWorker } from './workers/campaignWorker';
 import { webhook } from './controllers/metaController';
@@ -72,6 +74,8 @@ app.use(`${API_PREFIX}/lemon`, lemonSqueezyRouter);
 app.use(`${API_PREFIX}/auth`, authRouter);
 app.use(`${API_PREFIX}/audience`, audienceRouter);
 app.use(`${API_PREFIX}/multer`, uploadRouter);
+
+app.use("/test/calls", callTestRouter);
 
 app.get('/', (req: Request, res: Response) => {
   res.json({ message: 'Welcome to TypeScript Express' });

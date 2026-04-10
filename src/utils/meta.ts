@@ -1,5 +1,5 @@
 import axios from "axios";
-import { getWABAIDAndToken } from "../models/templateModel";
+import { getWABAIDAndToken, getUserTemplates } from "../models/templateModel";
 
 const PUBLIC_MEDIA_BASE_URL = "https://cybernauts.online/server-panel-ts/uploads/"; // add this to fileName
 
@@ -128,6 +128,24 @@ const sendTemplateMessageFromMeta=async(userId:string,phone:string,templateData:
     //get token data
     console.log("Template Data:",templateData);
     const {token,phoneNumberId}=await getWABAIDAndToken(userId) || {};
+
+    let templateName = templateData.template;
+    let templateJsonParsed: any = null;
+    
+    if (!templateName && templateData.templateId) {
+      const templates: any = await getUserTemplates({ templateId: templateData.templateId });
+      if (templates && templates.length > 0) {
+        templateName = templates[0].name;
+        try {
+          templateJsonParsed = JSON.parse(templates[0].templateJson);
+        } catch (e) {
+          console.error("Failed to parse templateJson from DB", e);
+        }
+      } else {
+        console.error(`No template found for ID: ${templateData.templateId}`);
+        return { status: false, message: "Template name could not be resolved from DB" };
+      }
+    }
       const components=[];
       if(templateData?.templateFile){
         //media template
@@ -143,27 +161,97 @@ const sendTemplateMessageFromMeta=async(userId:string,phone:string,templateData:
       }
 
       //text based parameters
-      if(templateData?.templateParams){
-        Object.keys(templateData.templateParams).forEach((paramType:string)=>{
+      if (templateData?.templateParams && Object.keys(templateData.templateParams).length > 0) {
+        Object.keys(templateData.templateParams).forEach((paramType: string) => {
           components.push({
-            type:paramType,
-            parameters:templateData.templateParams[paramType]
-        })
-        })
+            type: paramType,
+            parameters: templateData.templateParams[paramType]
+          });
+        });
+      } 
+
+      else if (templateJsonParsed && templateJsonParsed.components) {
+        const varMap = templateData.varMap || {};
+
+        templateJsonParsed.components.forEach((comp: any) => {
+          const compType = comp.type.toLowerCase();
+          let paramsForComp: any[] = [];
+
+          if (comp.example && comp.example[`${compType}_text_named_params`]) {
+            const namedParams = comp.example[`${compType}_text_named_params`];
+            namedParams.forEach((param: any) => {
+              const pName = param.param_name;
+              // Match order: direct varMap key, 'lead_' prefix, general name, or the DB example value as ultimate fallback
+              const pValue = varMap[pName] || varMap[`lead_${pName}`] || varMap["name"] || param.example || "User";
+              
+              paramsForComp.push({
+                type: "text",
+                param_name: pName,
+                text: String(pValue).substring(0, 1024)
+              });
+            });
+          }
+          else if (comp.example && comp.example[`${compType}_text`]) {
+            let posParams = comp.example[`${compType}_text`];
+            if (Array.isArray(posParams) && Array.isArray(posParams[0])) posParams = posParams[0];
+
+            if (Array.isArray(posParams)) {
+              posParams.forEach((exVal: string, idx: number) => {
+                const pValue = (idx === 0 && varMap["name"]) ? varMap["name"] : exVal;
+                paramsForComp.push({
+                  type: "text",
+                  text: String(pValue).substring(0, 1024)
+                });
+              });
+            }
+          }
+
+          if (paramsForComp.length > 0) {
+            components.push({
+              type: compType,
+              parameters: paramsForComp
+            });
+          }
+        });
       }
+
+      const langCode = templateData.language || templateJsonParsed?.language || "en_US";
+
+      const payload = {
+        "messaging_product": "whatsapp",
+        "to": phone,
+        "type": "template",
+        "template": {
+          "name": `${templateName}`,
+          "language": { "code": `${langCode}` },
+          "components": components
+        }
+      };
+
+      // const response = await axios.post(
+      //   `https://graph.facebook.com/v23.0/${phoneNumberId}/messages`,
+      //   {
+      //     "messaging_product":"whatsapp",
+      //     "to":phone,
+      //     "type":"template",
+      //     "template":{
+      //       // "name":`${templateData.template}`,
+      //       "name":`${templateName}`,
+      //       "language":{"code":`${templateData.language || "en_US"}`},
+      //       "components":components
+      //    }
+      //   },
+      //   {
+      //     headers: {
+      //       'Authorization': `Bearer ${token}`,
+      //       'Content-Type': 'application/json',
+      //     },
+      //   }
+      // );
 
       const response = await axios.post(
         `https://graph.facebook.com/v23.0/${phoneNumberId}/messages`,
-        {
-          "messaging_product":"whatsapp",
-          "to":phone,
-          "type":"template",
-          "template":{
-            "name":`${templateData.template}`,
-            "language":{"code":`${templateData.language || "en_US"}`},
-            "components":components
-         }
-        },
+        payload,
         {
           headers: {
             'Authorization': `Bearer ${token}`,

@@ -1,5 +1,6 @@
 import { Worker } from "bullmq";
 import IORedis from "ioredis";
+import axios from "axios";
 import { checkQuota,incrementQuota } from "../utils/redisUtil";
 import { getCampaignStatus } from "../utils/redisUtil";
 import {createChat} from "../models/chats";
@@ -133,7 +134,8 @@ const whatsappWorker=new Worker('whatsapp-queue',async(job : any)=>{
       campaignId, companyId, leadId, phone,
       flowData, flowId, nodeId,
       message,          // raw job data / node data blob (kept for chat creation)
-      resolvedMessage,  // ← pre-resolved text from createWhatsAppJobsDataFromFlow
+      resolvedMessage,
+      varMap,   
       userId, botName, botDescription, phoneNumberId,
     } = job.data;
     if(!(await checkQuota('whatsapp'))){
@@ -163,7 +165,8 @@ const whatsappWorker=new Worker('whatsapp-queue',async(job : any)=>{
         ? message
         : message?.message ?? "";
 
-    await sendTemplateMessageFromMeta(userId,phone,message);
+    // await sendTemplateMessageFromMeta(userId,phone,message);
+    await sendTemplateMessageFromMeta(userId, phone, { ...message, varMap });
     await incrementQuota('whatsapp');
 
     //updating in mongodb
@@ -221,44 +224,171 @@ const whatsappWorker=new Worker('whatsapp-queue',async(job : any)=>{
 },{connection,concurrency:5,limiter: { max: 20, duration: 1000 }});
 
 
-const callWorker=new Worker('call-queue',async(job : any)=>{
+// const callWorker=new Worker('call-queue',async(job : any)=>{
 
-    const {campaignId,companyId,leadId}=job.data
-    if(!(await checkQuota('call'))){
+//     const {campaignId,companyId,leadId}=job.data
+//     if(!(await checkQuota('call'))){
 
-        console.log(`Call limit reached for today. Skipping : ${job.data.phone}`);
-        return;
-    }
+//         console.log(`Call limit reached for today. Skipping : ${job.data.phone}`);
+//         return;
+//     }
 
-    const status=await getCampaignStatus(job.data.campaignId);
+//     const status=await getCampaignStatus(job.data.campaignId);
 
-    if(status==='paused'){
+//     if(status==='paused'){
 
-        console.log(`Campaign ${job.data.campaignId} is paused skipping job`);
-        return job.moveToDelayed(Date.now() + 1000 * 60 * 10); //recheck in 10 mins
-    }
+//         console.log(`Campaign ${job.data.campaignId} is paused skipping job`);
+//         return job.moveToDelayed(Date.now() + 1000 * 60 * 10); //recheck in 10 mins
+//     }
 
-    if(status==='cancelled'){
-        console.log(`Campaign ${job.data.campaignId} has been cancelled. Removing job`);
-        await job.remove();  
-        return;
-    }
+//     if(status==='cancelled'){
+//         console.log(`Campaign ${job.data.campaignId} has been cancelled. Removing job`);
+//         await job.remove();  
+//         return;
+//     }
     
-    await new Promise(resolve => setTimeout(resolve, 15000));
+//     await new Promise(resolve => setTimeout(resolve, 15000));
     
-    console.log(`Calling : ${job.data.phone}`);
-    await incrementQuota('call');
+//     console.log(`Calling : ${job.data.phone}`);
+//     await incrementQuota('call');
 
-    //updating in mongo db
-    const data={
-        campaignId,userId:leadId,
-        channel:'call',isBot:true,
-        flowId:"test",companyId,
-        message:"test",flowNodeId:'1'
-    };
-    // await createOrUpdateChat(data);
+//     //updating in mongo db
+//     const data={
+//         campaignId,userId:leadId,
+//         channel:'call',isBot:true,
+//         flowId:"test",companyId,
+//         message:"test",flowNodeId:'1'
+//     };
+//     // await createOrUpdateChat(data);
    
-},{connection,concurrency:1,limiter: { max: 1, duration: 1000 }});
+// },{connection,concurrency:1,limiter: { max: 1, duration: 1000 }});
+
+// ─── CALL WORKER ──────────────────────────────────────────────────────────────
+
+/**
+ * Initiates an outbound AI call via the Python/Acefone call server.
+ *
+ * Environment variables:
+ *   CALL_SERVER_URL   – base URL of the Python call server (default: http://localhost:8000)
+ *   CALL_TYPE         – calltype value the Python utility expects   (default: "campaign")
+ *
+ * After the call is placed the worker creates a MongoDB Chat document so
+ * agents can see call activity in the chats UI. The document is created
+ * immediately; call_end details (duration, recording, etc.) can be appended
+ * later via the /call-ended webhook (see callRoutes / callController).
+ */
+const callWorker = new Worker("call-queue", async (job: any) => {
+  const {
+    subFlow, leadId, email, phone, name,
+    campaignId, companyId, userId,
+    flowId, nodeId, script, title,
+  } = job.data;
+
+  if (!(await checkQuota("call"))) {
+    console.log(`Call limit reached. Skipping: ${phone}`);
+    return;
+  }
+
+  const status = await getCampaignStatus(campaignId);
+  if (status === "paused") {
+    console.log(`Campaign ${campaignId} paused — delaying call job`);
+    return job.moveToDelayed(Date.now() + 1000 * 60 * 10);
+  }
+  if (status === "cancelled") {
+    console.log(`Campaign ${campaignId} cancelled — removing call job`);
+    await job.remove();
+    return;
+  }
+
+  console.log(`Initiating call to: ${phone} | node: ${nodeId}`);
+
+  const CALL_SERVER_URL = process.env.CALL_SERVER_URL || "https://72c0-122-161-49-7.ngrok-free.app";
+  const CALL_TYPE       = process.env.CALL_TYPE       || "campaign";
+
+  // ── Hit the Python call server ─────────────────────────────────────────────
+  let callTaskId: string | null = null;
+  try {
+    const callResponse = await axios.post(
+      `${CALL_SERVER_URL}/make-call`,
+      {
+        number:     phone,
+        calltype:   CALL_TYPE,
+        // The `script` is the GPT realtime system prompt for this call node.
+        prompt:     script,
+        name:       name || phone,
+        campaignId,
+        leadId,
+        companyId,
+        // Pass these so the Python session manager can store them and the
+        // Node.js /call-ended webhook can look up the chat later.
+        nodeId,
+        flowId,
+        userId,
+      },
+      { timeout: 15_000 }
+    );
+    callTaskId = callResponse.data?.task_id ?? null;
+    console.log(`Call queued on Python server — task_id: ${callTaskId}`);
+  } catch (err: any) {
+    const msg = err?.response?.data?.error ?? err.message;
+    await updateJobStatus(job.id, "failed", msg);
+    throw new Error(`Call server error for ${phone}: ${msg}`);
+  }
+
+  await incrementQuota("call");
+
+  // ── Create MongoDB chat document ────────────────────────────────────────────
+  // Status is "pending" until the Python /call-ended webhook updates it.
+  const rawFlowData =
+    subFlow?.flowData
+      ? JSON.stringify(subFlow.flowData)
+      : JSON.stringify(subFlow?.json ?? []);
+
+  const chatDoc: any = {
+    _id:              Math.floor(10000000 + Math.random() * 90000000).toString(),
+    campaignId,
+    companyId,
+    userId:           leadId,    // lead is the "user" in the chat
+    adminId:          userId,    // campaign owner is the admin
+    userPhone:        phone,
+    flowId,
+    flowData:         rawFlowData,
+    botRole:          title || "Call Agent",
+    currentFlowNodeId: nodeId,
+    intents:          {},
+    isAgentHandover:  false,
+    isCompleted:      false,
+    isDeleted:        false,
+    sentiment:        "proceed",
+    channel:          "call",
+    // Store call metadata so the /call-ended webhook can find this doc.
+    callTaskId,
+    messages: [
+      {
+        isBot:      true,
+        flowNodeId: nodeId,
+        // First message is the script / opening prompt for reference.
+        message:    title || script,
+        createdOn:  Math.floor(Date.now() / 1000),
+      },
+    ],
+    createdOn: Math.floor(Date.now() / 1000),
+  };
+
+  await createChat(chatDoc);
+
+  sendMessageToAgent(companyId, {
+    type: "chatAdded",
+    chat: {
+      ...chatDoc,
+      flowData:     [],
+      userDetails:  { name: name || "Call Lead", email: email || "NA" },
+      unseenMessages: 0,
+    },
+  });
+
+  console.log(`Call chat document created: ${chatDoc._id}`);
+}, { connection, concurrency: 1, limiter: { max: 1, duration: 1000 } });
 
 
 //WORKER EVENTS

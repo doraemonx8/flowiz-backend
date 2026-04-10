@@ -10,7 +10,7 @@ import {  createAudience,
 
 const audienceRouter=Router();
 
-audienceRouter.post('/createAudience', checkQuota('audience'),verifyJWT,createAudience);
+audienceRouter.post('/createAudience',verifyJWT,checkQuota('audience'),createAudience);
 audienceRouter.delete('/removeData',verifyJWT,removeAudience);
 audienceRouter.get('/prefill', verifyJWT, getAudiencePrefill);
 audienceRouter.get('/audienceList',verifyJWT,getAudienceList);

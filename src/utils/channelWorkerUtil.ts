@@ -58,27 +58,17 @@ export function buildVariableMap(
   variableValues: Record<string, string> | undefined,
   lead: LeadData
 ): Record<string, string> {
-  if (!variableValues) return {};
   const map: Record<string, string> = {};
-  if (lead.name) {
-      map["lead_name"] = lead.name;
-      map["name"] = lead.name;
-  }
-  if (lead.email) {
-      map["lead_email"] = lead.email;
-      map["email"] = lead.email;
-  }
-  if (lead.phone) {
-      map["lead_phone"] = lead.phone;
-      map["phone"] = lead.phone;
-  }
-  if (lead.id) {
-      map["lead_id"] = String(lead.id);
-  }
 
-  if (!variableValues) {
-      return map; 
-  }
+  // Always populate core lead fields first so {{lead_name}}, {{lead_email}},
+  // {{lead_phone}} resolve even when the node has no variableValues configured.
+  if (lead.name)  { map["lead_name"] = lead.name;  map["name"]  = lead.name;  }
+  if (lead.email) { map["lead_email"] = lead.email; map["email"] = lead.email; }
+  if (lead.phone) { map["lead_phone"] = lead.phone; map["phone"] = lead.phone; }
+  if (lead.id)    { map["lead_id"] = String(lead.id); }
+
+  if (!variableValues) return map;  // return map with lead fields
+
   if (Array.isArray(variableValues)) {
     for (const item of variableValues) {
       if (item && item.key && typeof item.value === 'string') {
@@ -87,7 +77,8 @@ export function buildVariableMap(
     }
     return map;
   }
-  // 4. Handle standard Object dictionary mapping
+
+  // Handle standard object dictionary
   for (const [varName, intentRef] of Object.entries(variableValues)) {
     map[varName] = resolveIntentRef(intentRef, lead);
   }
@@ -402,33 +393,111 @@ export const createWhatsAppJobsDataFromFlow = (
  
     // Resolve the first message
     const firstMessage = resolveWhatsAppNodeMessage(firstNode, lead);
+
+    const varValues = firstNode.variableValues ?? firstNode.data?.variableValues;
+    const varMap = buildVariableMap(varValues, lead);
  
     // Resolve follow-up messages
     const scheduledFollowUps = scheduleMessages(
       { currentNodeId: firstNode.id, flowData: flowNodes },
       "whatsapp"
-    ).map((job: any) => ({
-      ...job,
-      message: fillTemplate(
-        job.message,
-        buildVariableMap(job.variableValues, lead)
-      ),
-    }));
+    ).map((job: any) => {
+      const jobVarMap = buildVariableMap(job.variableValues, lead);
+      return {
+        ...job,
+        message: fillTemplate(job.message, jobVarMap),
+        varMap: jobVarMap, 
+        templateParams: job.templateParams ?? job.data?.templateParams
+      };
+    });
  
     return [
       {
         id:           firstNode.id,
         message:      firstMessage,
-        // pass through template fields for Meta template messages
         templateId:   firstNode.templateId   ?? firstNode.data?.templateId,
         templateFile: firstNode.templateFile ?? firstNode.data?.templateFile,
-        // keep the original data blob so the worker can read other fields (e.g. prompt)
         rawData:      firstNode.data ?? firstNode,
+        varMap:       varMap, 
+        templateParams: firstNode.templateParams ?? firstNode.data?.templateParams
       },
       ...scheduledFollowUps,
     ];
   } catch (err) {
     console.error("An error occurred while creating WhatsApp jobs:", err);
+    return [];
+  }
+};
+
+// ─── CALL ─────────────────────────────────────────────────────────────────────
+
+export interface CallJobData {
+  id: string;
+  /** Short label / opening line for the call */
+  title: string;
+  /** Full text used as the GPT realtime system prompt */
+  script: string;
+  delay: { hours: string; mins: string } | null;
+}
+
+/**
+ * Build an ordered list of call jobs from a campaign call subflow.
+ *
+ * Supports both formats:
+ *   • json  – flat array from generateCallsPrompt: [{title, script}, {delay:{hours,mins}}, …]
+ *   • flowData – React-Flow visual nodes: [{id, type, data:{title,script,prompt}, …}]
+ *
+ * {{lead_name}} and other {{placeholders}} are resolved against the lead.
+ */
+export const createCallJobsDataFromFlow = (
+  subFlow: any,
+  lead: LeadData
+): CallJobData[] => {
+  try {
+    const isJsonData =
+      subFlow.json && (!subFlow.flowData || !subFlow.flowData.length);
+    const flowNodes: any[] = isJsonData ? subFlow.json : subFlow.flowData;
+
+    if (!flowNodes?.length) return [];
+
+    const jobs: CallJobData[] = [];
+    let pendingDelay: { hours: string; mins: string } | null = null;
+    let callIndex = 0;
+
+    for (const node of flowNodes) {
+      // Pure delay separator: {delay:{hours,mins}} with no title/script
+      if (node.delay && !node.title && !node.script && !node.data?.script) {
+        pendingDelay = {
+          hours: String(node.delay.hours ?? node.delay.hourDelay ?? 0),
+          mins:  String(node.delay.mins  ?? node.delay.minDelay  ?? 0),
+        };
+        continue;
+      }
+
+      // Call node — flat json or nested data
+      const rawTitle  = node.title  ?? node.data?.title  ?? "";
+      const rawScript = node.script ?? node.data?.script ?? node.data?.prompt ?? "";
+
+      if (!rawScript && !rawTitle) continue;
+
+      const varMap = buildVariableMap(
+        node.variableValues ?? node.data?.variableValues,
+        lead
+      );
+
+      jobs.push({
+        id:     node.id ?? `call${++callIndex}`,
+        title:  fillTemplate(rawTitle,  varMap),
+        script: fillTemplate(rawScript, varMap),
+        delay:  pendingDelay,
+      });
+
+      pendingDelay = null;
+    }
+
+    return jobs;
+  } catch (err) {
+    console.error("An error occurred while creating call jobs:", err);
     return [];
   }
 };

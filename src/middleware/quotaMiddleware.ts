@@ -32,7 +32,10 @@ declare global {
 export const checkQuota = (featureSlug: string, strictMode: boolean = true) => {
   return async (req: Request, res: Response, next: NextFunction): Promise<any> => {
     try {
-      const userId = req.body?.userId;
+      const user = (req as any).user;
+      console.log("CONSOLE USER => ",user)
+      const userId = user.sub;
+      // const userId = req.body?.userId;
       if (!userId) {
         return res.status(401).json({ status: false, message: 'User ID not found' });
       }

@@ -6,6 +6,7 @@ import { updateCampaignStatusDB } from "../models/campaignModel";
 import {
   createEmailJobsDataFromFlow,
   createWhatsAppJobsDataFromFlow,
+  createCallJobsDataFromFlow,
   LeadData,
 } from "../utils/channelWorkerUtil";
 import { emailWorker, callWorker, whatsappWorker } from "./channelWorker";
@@ -104,8 +105,68 @@ const campaignWorker = new Worker<CampaignJobData>("campaign-queue", async (job:
         console.log("Skipping chatbot flow");
 
       } else if (subFlow.type === "3" && isCallAgent) {
-        console.log("Adding job in call queue");
-        await callQueue.add("call-job", { subFlow, leadId: id, email, phone, campaignId, companyId });
+        // console.log("Adding job in call queue");
+        // await callQueue.add("call-job", { subFlow, leadId: id, email, phone, campaignId, companyId });
+        console.log("Adding jobs in call queue");
+
+        const callJobsData = createCallJobsDataFromFlow(subFlow, leadData);
+        if (!callJobsData.length) continue;
+
+        const firstCall = callJobsData[0];
+
+        // Stagger calls: 30 s per lead so we don't flood the call provider
+        const baseDelay = (leadCount - 1) * 1000 * 30;
+
+        const jobId = `${Date.now()}_call_${id}`;
+        await callQueue.add(
+          "call-job",
+          {
+            subFlow,
+            leadId:    id,
+            email,
+            phone,
+            name,
+            campaignId,
+            companyId,
+            userId,
+            flowId:    subFlow.id,
+            nodeId:    firstCall.id,
+            script:    firstCall.script,
+            title:     firstCall.title,
+          },
+          { jobId, delay: baseDelay }
+        );
+        await addJob(jobId, companyId, userId, subFlow.id, campaignId, id as string, "call");
+
+        // Schedule follow-up calls with their delays
+        for (const callJob of callJobsData.slice(1)) {
+          if (!callJob.delay) continue;
+          const delayInMs =
+            Number(callJob.delay.hours) * 60 * 60 * 1000 +
+            Number(callJob.delay.mins)  * 60 * 1000 +
+            baseDelay;
+
+          const followUpJobId = `${Date.now()}_call_followup_${id}`;
+          await callQueue.add(
+            "call-job",
+            {
+              subFlow,
+              leadId:    id,
+              email,
+              phone,
+              name,
+              campaignId,
+              companyId,
+              userId,
+              flowId:    subFlow.id,
+              nodeId:    callJob.id,
+              script:    callJob.script,
+              title:     callJob.title,
+            },
+            { jobId: followUpJobId, delay: delayInMs }
+          );
+          await addJob(followUpJobId, companyId, userId, subFlow.id, campaignId, id as string, "call");
+        }
       // } else if (subFlow.type === "4" && isWhatsappAgent && phone) {
       //   console.log("Adding job in whatsapp queue");
       //   const firstMessageNode = subFlow.flowData.filter((obj: any) => obj.data.isFirst === true)[0];
@@ -143,6 +204,7 @@ const campaignWorker = new Worker<CampaignJobData>("campaign-queue", async (job:
               // resolved message — no raw {{placeholders}} remain
               message:        firstJob.rawData ?? firstJob,
               resolvedMessage: firstJob.message,
+              varMap:          firstJob.varMap, 
               userId,
               botName:        "",
               botDescription: "",
@@ -171,6 +233,7 @@ const campaignWorker = new Worker<CampaignJobData>("campaign-queue", async (job:
                 nodeId:          firstJob.id,       // keep original node context
                 message:         waJob,             // raw job for worker compat
                 resolvedMessage: waJob.message,     // already resolved text
+                varMap:          waJob.varMap, 
                 userId,
                 botName:         "",
                 botDescription:  "",
