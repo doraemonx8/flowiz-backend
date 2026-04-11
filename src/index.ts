@@ -28,6 +28,7 @@ import authRouter from './routes/authRoutes';
 import audienceRouter from './routes/audienceRoutes';
 
 import callTestRouter from "./routes/callTestRoutes";
+import callRouter from './routes/callRoutes'
 
 //importing workers
 import { campaignWorker } from './workers/campaignWorker';
@@ -74,6 +75,7 @@ app.use(`${API_PREFIX}/lemon`, lemonSqueezyRouter);
 app.use(`${API_PREFIX}/auth`, authRouter);
 app.use(`${API_PREFIX}/audience`, audienceRouter);
 app.use(`${API_PREFIX}/multer`, uploadRouter);
+app.use(`${API_PREFIX}/calls`, callRouter)
 
 app.use("/test/calls", callTestRouter);
 

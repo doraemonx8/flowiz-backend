@@ -30,6 +30,14 @@ interface IChat extends Document {
     userAgent:string
     phoneNumberId:string
     userPhone:string
+
+    callTaskId?: string;
+    callSessionId?: string;
+    callSid?: string;
+    callDuration?: number;
+    callStatus?: string;
+    callSummary?: string;
+    recordingUrl?: string;
   }
 
 
@@ -57,6 +65,14 @@ const ChatSchema = new Schema<IChat>({
   intents: { type: Object, default: {} }, // Object
   createdOn: { type: Number, default: () => Math.floor(Date.now() / 1000) }, // Store as Unix timestamp
   isDeleted: { type: Boolean, default: false },
+
+  callTaskId:    { type: String, required: false },  // Celery task id
+  callSessionId: { type: String, required: false },  // Python session_id
+  callSid:       { type: String, required: false },  // Acefone call_id
+  callDuration:  { type: Number, required: false },
+  callStatus:    { type: String, required: false },
+  callSummary:   { type: String, required: false },
+  recordingUrl:  { type: String, required: false },
 });
 
 

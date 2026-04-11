@@ -279,114 +279,135 @@ const whatsappWorker=new Worker('whatsapp-queue',async(job : any)=>{
  */
 const callWorker = new Worker("call-queue", async (job: any) => {
   const {
-    subFlow, leadId, email, phone, name,
-    campaignId, companyId, userId,
-    flowId, nodeId, script, title,
-    campaignName  = "",
-    aiName        = "AI Assistant",
-    dynamicFields = {},
-  } = job.data;
-
-  if (!(await checkQuota("call"))) {
-    console.log(`Call limit reached. Skipping: ${phone}`);
-    return;
-  }
-
-  const status = await getCampaignStatus(campaignId);
-  if (status === "paused") {
-    console.log(`Campaign ${campaignId} paused — delaying call job`);
-    return job.moveToDelayed(Date.now() + 1000 * 60 * 10);
-  }
-  if (status === "cancelled") {
-    console.log(`Campaign ${campaignId} cancelled — removing call job`);
-    await job.remove();
-    return;
-  }
-
-  console.log(`Initiating call → ${phone} | campaign: ${campaignName} | node: ${nodeId}`);
-
-  const CALL_SERVER_URL = process.env.CALL_SERVER_URL || "https://4fbb-122-161-52-81.ngrok-free.app";
-  const CALL_TYPE       = process.env.CALL_TYPE       || "campaign";
-
-  let callTaskId: string | null = null;
-  try {
-    const callResponse = await axios.post(
-      `${CALL_SERVER_URL}/make-call`,
-      {
-        number:       phone,
-        calltype:     CALL_TYPE,
-        name:         name || phone,
-        campaignName,
-        campaignId,
-        adminId:      userId,
-        ai_name:      aiName,
-        dynamicFields,
-        node_script:  script,
-        node_title:   title,
-        leadId,
-        nodeId,
-        flowId,
-        userId,
-        companyId,
+      subFlow,
+      leadId,
+      email,
+      phone,
+      name,
+      campaignId,
+      companyId,
+      userId,
+      flowId,
+      nodeId,
+      script,
+      title,
+      campaignName = "",
+      aiName = "AI Assistant",
+      dynamicFields = {},
+    } = job.data;
+ 
+    if (!(await checkQuota("call"))) {
+      console.log(`Call limit reached. Skipping: ${phone}`);
+      return;
+    }
+ 
+    const status = await getCampaignStatus(campaignId);
+    if (status === "paused") {
+      return job.moveToDelayed(Date.now() + 1000 * 60 * 10);
+    }
+    if (status === "cancelled") {
+      await job.remove();
+      return;
+    }
+ 
+    console.log(`Initiating call → ${phone} | campaign: ${campaignName} | node: ${nodeId}`);
+ 
+    const CALL_SERVER_URL =
+      process.env.CALL_SERVER_URL || "https://4fbb-122-161-52-81.ngrok-free.app";
+    const CALL_TYPE = process.env.CALL_TYPE || "campaign";
+    const FLOWIZ_BACKEND_URL = process.env.FLOWIZ_BACKEND_URL || "http://localhost:3000";
+ 
+    // ── Pre-generate chatId so Python knows it from the start ────────────────
+    const chatId = Math.floor(10_000_000 + Math.random() * 90_000_000).toString();
+ 
+    let callTaskId: string | null = null;
+    try {
+      const callResponse = await axios.post(
+        `${CALL_SERVER_URL}/make-call`,
+        {
+          number: phone,
+          calltype: CALL_TYPE,
+          name: name || phone,
+          campaignName,
+          campaignId,
+          adminId: userId,
+          ai_name: aiName,
+          dynamicFields,
+          node_script: script,
+          node_title: title,
+          leadId,
+          nodeId,
+          flowId,
+          userId,
+          companyId,
+          // ── pass chatId so Python can POST back to us ──
+          chatId,
+          flowiz_backend_url: FLOWIZ_BACKEND_URL,
+          internal_secret: process.env.CALL_INTERNAL_SECRET ?? "",
+        },
+        { timeout: 15_000 }
+      );
+      callTaskId = callResponse.data?.task_id ?? null;
+      console.log(`Call queued — task_id: ${callTaskId}`);
+    } catch (err: any) {
+      const msg = err?.response?.data?.error ?? err.message;
+      await updateJobStatus(job.id, "failed", msg);
+      throw new Error(`Call server error for ${phone}: ${msg}`);
+    }
+ 
+    await incrementQuota("call");
+ 
+    // ── Create MongoDB chat document (same chatId we gave Python) ────────────
+    const rawFlowData = subFlow?.flowData
+      ? JSON.stringify(subFlow.flowData)
+      : JSON.stringify(subFlow?.json ?? []);
+ 
+    const chatDoc: any = {
+      _id: chatId,
+      campaignId,
+      companyId,
+      userId: leadId,
+      adminId: userId,
+      userPhone: phone,
+      flowId,
+      flowData: rawFlowData,
+      botRole: aiName || title || "Call Agent",
+      currentFlowNodeId: nodeId,
+      intents: {},
+      isAgentHandover: false,
+      isCompleted: false,
+      isDeleted: false,
+      sentiment: "proceed",
+      channel: "call",
+      callTaskId,          // Celery task id
+      callSessionId: null,
+      messages: [
+        {
+          isBot: true,
+          flowNodeId: nodeId,
+          message: title || script,
+          createdOn: Math.floor(Date.now() / 1000),
+        },
+      ],
+      createdOn: Math.floor(Date.now() / 1000),
+    };
+ 
+    await createChat(chatDoc);
+ 
+    sendMessageToAgent(companyId, {
+      type: "chatAdded",
+      chat: {
+        ...chatDoc,
+        flowData: [],
+        userDetails: { name: name || "Call Lead", email: email || "NA" },
+        unseenMessages: 0,
       },
-      { timeout: 15_000 }
-    );
-    callTaskId = callResponse.data?.task_id ?? null;
-    console.log(`Call queued — task_id: ${callTaskId}`);
-  } catch (err: any) {
-    const msg = err?.response?.data?.error ?? err.message;
-    await updateJobStatus(job.id, "failed", msg);
-    throw new Error(`Call server error for ${phone}: ${msg}`);
-  }
-
-  await incrementQuota("call");
-
-  // Create MongoDB chat document
-  const rawFlowData = subFlow?.flowData
-    ? JSON.stringify(subFlow.flowData)
-    : JSON.stringify(subFlow?.json ?? []);
-
-  const chatDoc: any = {
-    _id:               Math.floor(10_000_000 + Math.random() * 90_000_000).toString(),
-    campaignId,
-    companyId,
-    userId:            leadId,
-    adminId:           userId,
-    userPhone:         phone,
-    flowId,
-    flowData:          rawFlowData,
-    botRole:           aiName || title || "Call Agent",
-    currentFlowNodeId: nodeId,
-    intents:           {},
-    isAgentHandover:   false,
-    isCompleted:       false,
-    isDeleted:         false,
-    sentiment:         "proceed",
-    channel:           "call",
-    callTaskId,
-    messages: [{
-      isBot:      true,
-      flowNodeId: nodeId,
-      message:    title || script,
-      createdOn:  Math.floor(Date.now() / 1000),
-    }],
-    createdOn: Math.floor(Date.now() / 1000),
-  };
-
-  await createChat(chatDoc);
-
-  sendMessageToAgent(companyId, {
-    type: "chatAdded",
-    chat: {
-      ...chatDoc,
-      flowData:     [],
-      userDetails:  { name: name || "Call Lead", email: email || "NA" },
-      unseenMessages: 0,
-    },
-  });
-
-  console.log(`Call chat created: ${chatDoc._id}`);
-}, { connection, concurrency: 1, limiter: { max: 1, duration: 1000 } });
+    });
+ 
+    console.log(`Call chat created: ${chatId}`);
+  },
+  { connection, concurrency: 1, limiter: { max: 1, duration: 1000 } }
+);
 
 
 //WORKER EVENTS

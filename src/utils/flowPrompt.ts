@@ -257,68 +257,123 @@ Fill ONLY the empty strings with compelling email content based on the product d
 
 
 const generateCallsPrompt = `
-You are an expert outbound call strategist.
-Your task: Generate ONLY the call script content inside a fixed node structure.
-Do NOT change the structure, number of nodes, keys, IDs, or their order.
+You are an expert outbound call script architect designing a COMPLETE, FULLY-CLOSED conversation tree for a real-time AI voice bot.
 
-Rules:
-- Analyze the provided product JSON.
+CRITICAL CONTEXT:
+- This script is dumped DIRECTLY into a live voice bot with zero human oversight.
+- Every possible user response MUST be handled — there is NO fallback, NO improvisation.
+- The entire conversation for ONE call must be completely scripted end-to-end.
+- The followUp node is ONLY for scheduling retry calls when the lead does not answer. It is NOT part of the in-call conversation.
+- Once a call is answered, the entire conversation tree must resolve to an end node.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+NODE TYPES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. CALL node — the bot speaks:
+{
+  "id": "callX",
+  "type": "call",
+  "title": "short label",
+  "script": "What the bot says out loud. Voice-friendly. Under 60 words.",
+  "next": ["decisionX", "decisionY", "decisionZ"]  // IDs of all possible response branches
+}
+
+2. DECISION node — a branch condition based on what the user said:
+{
+  "id": "decisionX",
+  "type": "decision",
+  "content": "If the user <exact condition>",
+  "next": ["callX"]  // always leads to exactly one call node
+}
+
+3. FOLLOWUP node — retry scheduler for unanswered calls ONLY:
+{
+  "id": "followUp1",
+  "type": "followUp",
+  "data": [
+    { "type": "delay", "hours": "24", "mins": "0", "sec": "0" },
+    { "type": "call", "title": "", "script": "" },
+    { "type": "delay", "hours": "48", "mins": "0", "sec": "0" },
+    { "type": "call", "title": "", "script": "" }
+  ],
+  "next": []
+}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MANDATORY RESPONSE BRANCHES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Every CALL node that asks a question MUST have decision branches covering ALL of these cases:
+  - POSITIVE  → user is interested, agrees, says yes, asks for more info
+  - NEGATIVE  → user says no, not interested, asks to be removed, hangs up tone
+  - UNCLEAR   → user is confused, gives vague answer, asks to repeat, goes off-topic
+
+The UNCLEAR branch MUST loop back to a rephrased version of the same question (a new call node), 
+and that rephrased node must also have all three branches. 
+Max 2 unclear retries per question — after 2nd unclear, route to a polite end node.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CONVERSATION STRUCTURE RULES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Start with "call1" — a short greeting that introduces the bot and product, then asks ONE qualifying question.
+
+2. NEGATIVE path at any point → route to a dedicated polite goodbye call node → "next": []
+   Example script: "No problem at all, {{lead_name}}. I won't take more of your time. Have a great day!"
+
+3. POSITIVE path → continue deeper into the conversation:
+   - Ask follow-up questions about their needs, pain points, or interest level
+   - Each follow-up question also gets full POSITIVE / NEGATIVE / UNCLEAR branching
+   - Build 2 to 4 levels of depth depending on the product complexity
+
+4. After sufficient positive engagement → route to a CLOSING call node:
+   - Summarize value, give a clear CTA (book a demo, visit a link, expect a follow-up email, etc.)
+   - "next": []
+
+5. Every conversation path MUST terminate in a node with "next": []
+   - No dangling references
+   - No node IDs in "next" that don't exist in the array
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SCRIPT WRITING RULES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 - Use {{lead_name}} as the placeholder for the recipient's name.
-- Write scripts as the AI agent's natural speaking lines — voice-friendly, conversational, under 60 words per node.
-- Negative response means the lead is NOT interested — we NEVER call them again (next: [] on decision2).
-- No-answer / voicemail means we retry with delays via followUp1.
-- Positive response means interest confirmed — we do ONE closing call then stop.
-- Keep JSON valid. No explanations outside the array.
+- All scripts must sound like natural spoken language — no bullet points, no em-dashes, no markdown.
+- Keep each script under 60 words — voice bots lose attention quickly.
+- Vary phrasing between retry nodes so it doesn't sound robotic on unclear loops.
+- The closing node should always confirm the next step clearly.
+- Never mention competitor names or make promises not grounded in the product JSON.
 
-You MUST output exactly this structure, only filling the empty "title" and "script" fields:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OUTPUT FORMAT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-[
-  {
-    "id": "call1",
-    "type": "call",
-    "title": "",
-    "script": "",
-    "isFirst": true,
-    "next": ["decision1", "decision2", "followUp1"]
-  },
-  {
-    "id": "decision1",
-    "type": "decision",
-    "content": "If the user responds positively and shows interest",
-    "next": ["callPositive"]
-  },
-  {
-    "id": "decision2",
-    "type": "decision",
-    "content": "If the user responds negatively or asks not to be called again",
-    "next": []
-  },
-  {
-    "id": "followUp1",
-    "type": "followUp",
-    "data": [
-      { "type": "delay", "hours": "24", "mins": "0", "sec": "0" },
-      { "type": "call", "title": "", "script": "" },
-      { "type": "delay", "hours": "48", "mins": "0", "sec": "0" },
-      { "type": "call", "title": "", "script": "" }
-    ],
-    "next": []
-  },
-  {
-    "id": "callPositive",
-    "type": "call",
-    "title": "",
-    "script": "",
-    "isLast": true,
-    "next": []
-  }
-]
+Return ONLY a valid JSON array. No markdown. No explanations. No code fences.
 
-IMPORTANT:
-- decision2 MUST always have "next": [] — negative response = stop all calls.
-- followUp1 data items are retry calls for when nobody answers.
-- callPositive is the only follow-up for an interested lead — after this, stop.
-- Scripts must sound like a natural phone call opener.`;
+The array must contain, in order:
+  1. call1 (opening)
+  2. All decision nodes for call1
+  3. Deeper call nodes and their decision nodes (positive branch tree)
+  4. Unclear retry nodes and their decision nodes
+  5. Goodbye / negative end node(s)
+  6. Closing / positive end node
+  7. followUp1 (retry scheduler for no-answer — always last)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+VALIDATION CHECKLIST (check before outputting)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Every call node that asks a question has exactly 3 decision branches: positive, negative, unclear  
+Every decision node leads to exactly one call node  
+Every unclear branch loops back to a rephrased call node (max 2 retries then end)  
+Every negative branch ends in a goodbye call node with "next": []  
+Every positive chain ends in a closing call node with "next": []  
+No node ID is referenced in any "next" array unless it exists in the output  
+followUp1 is present and is the last item in the array  
+Output is a single valid JSON array with no text outside it
+`;
 
 
 const generateChatsPromptOld = `You are an expert in conversational marketing. Analyze the product description to determine:
