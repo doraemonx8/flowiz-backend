@@ -139,7 +139,7 @@ router.post("/make-direct", async (req: Request, res: Response): Promise<any> =>
     }
 
     const CALL_SERVER_URL = process.env.CALL_SERVER_URL || "https://4fbb-122-161-52-81.ngrok-free.app";
-    const CALL_TYPE       = calltype || process.env.CALL_TYPE || "campaign";
+    const CALL_TYPE = calltype || process.env.CALL_TYPE || "campaign";
 
     const response = await axios.post(
       `${CALL_SERVER_URL}/make-call`,

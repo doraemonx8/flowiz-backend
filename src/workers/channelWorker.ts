@@ -319,6 +319,12 @@ const callWorker = new Worker("call-queue", async (job: any) => {
  
     // ── Pre-generate chatId so Python knows it from the start ────────────────
     const chatId = Math.floor(10_000_000 + Math.random() * 90_000_000).toString();
+
+    const fullFlow = subFlow?.json
+    ? (Array.isArray(subFlow.json) ? subFlow.json : JSON.parse(subFlow.json))
+    : subFlow?.flowData
+    ? (Array.isArray(subFlow.flowData) ? subFlow.flowData : JSON.parse(subFlow.flowData))
+    : null;
  
     let callTaskId: string | null = null;
     try {
@@ -333,8 +339,8 @@ const callWorker = new Worker("call-queue", async (job: any) => {
           adminId: userId,
           ai_name: aiName,
           dynamicFields,
-          node_script: script,
-          node_title: title,
+          script: fullFlow ? JSON.stringify(fullFlow) : script,
+          title,
           leadId,
           nodeId,
           flowId,
