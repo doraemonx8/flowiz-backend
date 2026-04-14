@@ -329,4 +329,110 @@ router.get("/queue-stats", async (_req: Request, res: Response): Promise<any> =>
   }
 });
 
+router.post("/e2e", async (req: Request, res: Response): Promise<any> => {
+  try {
+    const {
+      phone, name, email,
+      campaignId, companyId, userId,
+      productJson,
+      dynamicFields,
+      campaignName = "E2E Test",
+      aiName       = "AI Assistant",
+    } = req.body;
+
+    if (!phone || !productJson || !dynamicFields) {
+      return res.status(400).json({
+        status: false,
+        message: "phone, productJson, and dynamicFields are required",
+      });
+    }
+
+    // ── 1. Generate call script ────────────────────────────────────────────────
+    // This is the same call createSubFlowsForCampaign makes for type "3"
+    const raw   = await generateCalls(
+      typeof productJson === "string" ? productJson : JSON.stringify(productJson)
+    );
+    const nodes = JSON.parse(jsonrepair(raw));
+
+    // ── 2. Build subFlow object (same shape campaignWorker reads from DB) ──────
+    const subFlow = {
+      type:       "3",
+      id:         `e2e_test_${Date.now()}`,
+      json:       nodes,
+      flowData:   null,
+      configData: JSON.stringify({
+        botName:       aiName,
+        dynamicFields: dynamicFields,   // ← this is how real campaigns pass dynamicFields too
+      }),
+    };
+
+    // ── 3. Resolve script for this lead (same as campaignWorker) ───────────────
+    const leadData: LeadData = {
+      id:    userId,
+      name:  name  || phone,
+      email: email || "",
+      phone,
+    };
+
+    const callJobsData = createCallJobsDataFromFlow(subFlow, leadData);
+    if (!callJobsData.length) {
+      return res.status(500).json({
+        status:  false,
+        message: "Script generated but no call nodes found. Check productJson.",
+        nodes,
+      });
+    }
+
+    const firstCall = callJobsData[0];
+
+    // ── 4. Add to callQueue — callWorker handles EVERYTHING from here ──────────
+    // Same exact call as campaignWorker makes. callWorker will:
+    //   a) POST to Python /make-call (with script, chatId, dynamicFields, etc.)
+    //   b) Create MongoDB Chat document
+    //   c) Fire SSE "chatAdded" event
+    const jobId = `e2e_${Date.now()}_call_${phone}`;
+
+    await callQueue.add("call-job", {
+      subFlow,
+      leadId:       userId,
+      email:        email || "",
+      phone,
+      name:         name || phone,
+      campaignId,
+      companyId,
+      userId,
+      flowId:       subFlow.id,
+      nodeId:       firstCall.id,
+      script:       firstCall.script,
+      title:        firstCall.title,
+      campaignName,
+      aiName,
+      dynamicFields,          // callWorker reads this and forwards to Python
+    }, { jobId });
+
+    await addJob(jobId, companyId, userId, subFlow.id, campaignId, String(userId), "call");
+
+    // ── 5. Return tracking info ────────────────────────────────────────────────
+    return res.json({
+      status:          true,
+      jobId,
+      nodeCount:       nodes.length,
+      firstCallTitle:  firstCall.title,
+      generatedScript: nodes,
+      note: "callWorker has picked up the job — it will POST to Python, create the Chat doc, and fire SSE chatAdded. Use the endpoints below to track progress.",
+      tracking: {
+        chatList:    `GET /test/calls/chats?companyId=${companyId}`,
+        queueStats:  `GET /test/calls/queue-stats`,
+        analysis:    `GET /api/calls/analysis?chatId=<chatId returned in chatAdded SSE event>  (needs JWT)`,
+        sse:         `GET /api/events/chats?userId=${userId}&token=<jwt>  — watch for chatAdded → messageAdded → callAnalysisReady`,
+      },
+    });
+
+  } catch (err: any) {
+    const msg = err?.response?.data ?? err.message;
+    return res.status(500).json({ status: false, message: msg });
+  }
+});
+
+
 export default router;

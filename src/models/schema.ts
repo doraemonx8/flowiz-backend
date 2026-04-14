@@ -38,6 +38,7 @@ interface IChat extends Document {
     callStatus?: string;
     callSummary?: string;
     recordingUrl?: string;
+    transcription?: string;
   }
 
 
@@ -73,6 +74,7 @@ const ChatSchema = new Schema<IChat>({
   callStatus:    { type: String, required: false },
   callSummary:   { type: String, required: false },
   recordingUrl:  { type: String, required: false },
+  transcription: { type: String, required: false },
 });
 
 

@@ -123,8 +123,8 @@ const campaignWorker = new Worker<CampaignJobData>("campaign-queue", async (job:
         } catch (_) {}
 
         const aiName        = callConfig.botName      || callConfig.agentName || "AI Assistant";
-        const dynamicFields = callConfig.dynamicFields || {};
         const campaignName  = job.data.campaignName    || "";
+        const dynamicFields = callConfig.dynamicFields   || callConfig.dynamic_fields || [];
 
         const sharedMeta = { campaignName, aiName, dynamicFields };
 

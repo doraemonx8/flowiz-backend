@@ -321,10 +321,14 @@ const callWorker = new Worker("call-queue", async (job: any) => {
     const chatId = Math.floor(10_000_000 + Math.random() * 90_000_000).toString();
 
     const fullFlow = subFlow?.json
-    ? (Array.isArray(subFlow.json) ? subFlow.json : JSON.parse(subFlow.json))
-    : subFlow?.flowData
-    ? (Array.isArray(subFlow.flowData) ? subFlow.flowData : JSON.parse(subFlow.flowData))
-    : null;
+        ? Array.isArray(subFlow.json)
+          ? subFlow.json
+          : JSON.parse(subFlow.json)
+        : subFlow?.flowData
+        ? Array.isArray(subFlow.flowData)
+          ? subFlow.flowData
+          : JSON.parse(subFlow.flowData)
+        : null;
  
     let callTaskId: string | null = null;
     try {
